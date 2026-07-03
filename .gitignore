@@ -1,0 +1,37 @@
+# ─── Secrets / environment ────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Databases / logs ─────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# ─── Node / frontend ──────────────────────────────────────────────────────────
+node_modules/
+dist/
+.vite/
+
+# ─── Crawl / generated artifacts ──────────────────────────────────────────────
+crawl_output.json
+
+# ─── OS / editor ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

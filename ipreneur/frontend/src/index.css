@@ -1,0 +1,237 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   iPreneur Design System — CSS Custom Properties
+   Light, professional purple theme.
+   ============================================================ */
+
+:root {
+  /* ── Brand violet scale ─────────────────────────────────── */
+  --violet-50:  #F7F4FE;
+  --violet-100: #EFE8FC;
+  --violet-200: #E0D2F8;
+  --violet-300: #C9B2F1;
+  --violet-400: #AC86E6;
+  --violet-500: #9359DC;
+  --violet-600: #7B2CBF;
+  --violet-700: #66249F;
+  --violet-800: #511E7E;
+  --violet-900: #3F1A61;
+
+  /* ── Indigo / electric-blue scale ──────────────────────── */
+  --indigo-50:  #EEF1FC;
+  --indigo-100: #DCE2F9;
+  --indigo-200: #BBC6F1;
+  --indigo-300: #8E9FE6;
+  --indigo-400: #5A6FD4;
+  --indigo-500: #3A52C4;
+  --indigo-600: #2540B5;
+  --indigo-700: #1E3494;
+  --indigo-800: #1A2B76;
+  --indigo-900: #16245E;
+
+  /* ── Magenta accent ─────────────────────────────────────── */
+  --magenta-400: #C75FD0;
+  --magenta-500: #B23FBE;
+  --magenta-600: #9C2FA8;
+
+  /* ── Neutral scale — purple-tinted greys ────────────────── */
+  --neutral-0:   #FFFFFF;
+  --neutral-25:  #FCFBFE;
+  --neutral-50:  #FAF8FE;
+  --neutral-100: #F4F1FA;
+  --neutral-200: #ECE7F4;
+  --neutral-300: #DDD6EC;
+  --neutral-400: #C3B9D8;
+  --neutral-500: #9A8FB5;
+  --neutral-600: #726890;
+  --neutral-700: #544B70;
+  --neutral-800: #36304B;
+  --neutral-900: #1E1833;
+
+  /* ── Semantic hues ──────────────────────────────────────── */
+  --green-50:  #ECFBF2;  --green-500: #16A34A;  --green-600: #128A3E;
+  --amber-50:  #FEF6E9;  --amber-500: #E08A00;  --amber-600: #C26E00;
+  --red-50:    #FDECEC;  --red-500:   #DC2626;  --red-600:   #BE1B1B;
+  --blue-50:   #EBF2FE;  --blue-500:  #2563EB;  --blue-600:  #1D4FCC;
+
+  /* ── Brand semantic aliases ─────────────────────────────── */
+  --brand:           var(--violet-600);
+  --brand-hover:     var(--violet-700);
+  --brand-press:     var(--violet-800);
+  --brand-subtle:    var(--violet-100);
+  --brand-subtle-2:  var(--violet-50);
+  --brand-secondary: var(--indigo-600);
+
+  /* ── Gradients ──────────────────────────────────────────── */
+  --grad-brand:       linear-gradient(135deg, var(--indigo-600) 0%, var(--violet-600) 100%);
+  --grad-brand-vivid: linear-gradient(135deg, var(--indigo-600) 0%, var(--violet-600) 52%, var(--magenta-500) 100%);
+  --grad-brand-soft:  linear-gradient(135deg, var(--indigo-50) 0%, var(--violet-50) 100%);
+  --grad-hero:        radial-gradient(120% 90% at 50% -10%, var(--violet-100) 0%, rgba(247,244,254,0) 60%);
+
+  /* ── Surfaces ───────────────────────────────────────────── */
+  --surface-page:   var(--neutral-50);
+  --surface-card:   var(--neutral-0);
+  --surface-raised: var(--neutral-0);
+  --surface-sunken: var(--neutral-100);
+  --surface-hover:  var(--neutral-100);
+  --surface-brand:  var(--violet-50);
+
+  /* ── Text ───────────────────────────────────────────────── */
+  --text-strong:   var(--neutral-900);
+  --text-body:     var(--neutral-700);
+  --text-muted:    var(--neutral-600);
+  --text-faint:    var(--neutral-500);
+  --text-on-brand: var(--neutral-0);
+  --text-brand:    var(--violet-600);
+  --text-link:     var(--violet-600);
+
+  /* ── Borders ────────────────────────────────────────────── */
+  --border-subtle:  var(--neutral-200);
+  --border-default: var(--neutral-300);
+  --border-strong:  var(--neutral-400);
+  --border-brand:   var(--violet-300);
+  --ring-brand:     rgba(123, 44, 191, 0.32);
+
+  /* ── Semantic surface/text ──────────────────────────────── */
+  --success:         var(--green-500);
+  --success-surface: var(--green-50);
+  --warning:         var(--amber-500);
+  --warning-surface: var(--amber-50);
+  --danger:          var(--red-500);
+  --danger-surface:  var(--red-50);
+  --info:            var(--blue-500);
+  --info-surface:    var(--blue-50);
+
+  /* ── Typography ─────────────────────────────────────────── */
+  --font-display: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
+  --font-body:    "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono:    "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
+
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+  --weight-extra:    800;
+
+  --text-xs:   0.75rem;
+  --text-sm:   0.875rem;
+  --text-base: 1rem;
+  --text-md:   1.125rem;
+  --text-lg:   1.375rem;
+  --text-xl:   1.75rem;
+  --text-2xl:  2.25rem;
+  --text-3xl:  3rem;
+  --text-4xl:  3.75rem;
+
+  --leading-tight:   1.12;
+  --leading-snug:    1.28;
+  --leading-normal:  1.5;
+  --leading-relaxed: 1.7;
+
+  --tracking-tighter: -0.03em;
+  --tracking-tight:   -0.018em;
+  --tracking-normal:  0;
+  --tracking-wide:    0.02em;
+  --tracking-caps:    0.08em;
+
+  /* ── Spacing ─────────────────────────────────────────────── */
+  --space-0:  0;
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.25rem;
+  --space-6:  1.5rem;
+  --space-8:  2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* ── Radii ───────────────────────────────────────────────── */
+  --radius-xs:   6px;
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   20px;
+  --radius-2xl:  28px;
+  --radius-pill: 999px;
+
+  /* ── Shadows ─────────────────────────────────────────────── */
+  --shadow-xs: 0 1px 2px rgba(45, 27, 92, 0.06);
+  --shadow-sm: 0 1px 3px rgba(45, 27, 92, 0.08), 0 1px 2px rgba(45, 27, 92, 0.05);
+  --shadow-md: 0 6px 16px rgba(45, 27, 92, 0.08), 0 2px 6px rgba(45, 27, 92, 0.05);
+  --shadow-lg: 0 16px 36px rgba(45, 27, 92, 0.10), 0 4px 12px rgba(45, 27, 92, 0.06);
+  --shadow-xl: 0 28px 64px rgba(45, 27, 92, 0.14), 0 8px 20px rgba(45, 27, 92, 0.08);
+  --glow-brand: 0 8px 26px rgba(123, 44, 191, 0.30);
+
+  /* ── Focus & motion ──────────────────────────────────────── */
+  --ring-width:  3px;
+  --focus-ring:  0 0 0 var(--ring-width) var(--ring-brand);
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast:    120ms;
+  --dur-base:    180ms;
+  --dur-slow:    320ms;
+  --transition:  all var(--dur-base) var(--ease-out);
+}
+
+/* ── Base resets ──────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--text-body);
+  background: var(--surface-page);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: var(--font-display);
+  color: var(--text-strong);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  margin: 0;
+}
+
+p { margin: 0; }
+a { color: var(--text-link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, kbd, samp { font-family: var(--font-mono); }
+::selection { background: var(--violet-200); color: var(--violet-900); }
+
+/* ── Brand helpers ────────────────────────────────────────── */
+.ipr-gradient-text {
+  background: var(--grad-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ipr-eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-brand);
+}
+
+.ipr-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--grad-brand);
+  color: var(--neutral-0);
+  border-radius: var(--radius-md);
+  box-shadow: var(--glow-brand);
+}
