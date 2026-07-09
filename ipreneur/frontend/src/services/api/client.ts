@@ -2,12 +2,12 @@
 import { useAuthStore } from "@/stores/authStore";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !(value instanceof Date) &&
-    !Array.isArray(value)
-  );
+  if (typeof value !== "object" || value === null) return false;
+  // Only treat literal `{}` objects as plain — reject built-ins like Blob,
+  // ArrayBuffer, Date, Map, etc. so they pass through the camelizer untouched
+  // (e.g. blob responses for file downloads must not be mangled into `{}`).
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 function toCamelCase(value: string): string {

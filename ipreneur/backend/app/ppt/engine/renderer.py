@@ -20,6 +20,7 @@ from loguru import logger
 
 from app.services.branding.extractor import BrandingData
 from app.agents.content.content_agent import DeckContent, SlideContent
+from app.ppt.engine.themes import get_theme
 
 
 # ── Color helpers ──────────────────────────────────────────────────────────────
@@ -95,6 +96,40 @@ def _brand_palette(primary: RGBColor, secondary: RGBColor) -> dict:
     }
 
 
+def _theme_palette(theme: dict) -> dict:
+    """
+    Build the slide palette from a selected deck theme (see themes.py).
+
+    Uses the theme's own tokens directly so the PPTX matches the template the
+    user previewed in the module — including light themes (light background +
+    dark text), instead of the old always-dark brand palette.
+    """
+    bg      = _rgb(theme["bg"])
+    surface = _rgb(theme["surface"])
+    text    = _rgb(theme["text"])
+    muted   = _rgb(theme["muted"])
+    accent  = _rgb(theme["accent"])
+    accent2 = _rgb(theme["accent2"])
+
+    return {
+        "mode":      theme.get("mode", "dark"),
+        "bg":        bg,
+        "surface":   surface,
+        # Alt surface — nudge slightly toward the text color for contrast
+        "surface2":  _mix(surface, text, 0.06),
+        # Border — a soft blend of surface toward text (works in light & dark)
+        "border":    _mix(surface, text, 0.20),
+        "text_pri":  text,
+        "text_sec":  muted,
+        # Muted text — faded toward the background
+        "text_muted": _mix(muted, bg, 0.40),
+        "accent1":   accent,
+        "accent2":   accent2,
+        "accent3":   _mix(accent, accent2, 0.5),
+        "accent4":   _mix(accent, text, 0.25),
+    }
+
+
 # ── Constants (fallback defaults) ─────────────────────────────────────────────
 
 W = Inches(13.333)
@@ -118,17 +153,21 @@ class PPTRenderer:
         branding: BrandingData,
         logo_bytes: Optional[bytes] = None,
         slide_backgrounds: Optional[dict] = None,
+        template_key: Optional[str] = None,
     ) -> bytes:
-        logger.info(f"📊 Rendering PPTX: {len(deck_content.slides)} slides")
+        theme = get_theme(template_key)
+        logger.info(
+            f"📊 Rendering PPTX: {len(deck_content.slides)} slides | "
+            f"theme={template_key or 'default'} ({theme['name']}, {theme['mode']})"
+        )
 
         prs = Presentation()
         prs.slide_width = W
         prs.slide_height = H
 
-        primary   = _rgb(branding.primary_color)   if branding.primary_color   else ACCENT_1
-        secondary = _rgb(branding.secondary_color) if branding.secondary_color else ACCENT_2
-
-        palette = _brand_palette(primary, secondary)
+        # Palette comes from the user-selected theme so the download matches the
+        # template previewed in the module (dark OR light).
+        palette = _theme_palette(theme)
         slide_backgrounds = slide_backgrounds or {}
 
         for slide_data in deck_content.slides:

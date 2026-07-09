@@ -62,6 +62,7 @@ async def _run_analysis_inline(project_id: str, job_id: str) -> None:
             _proj = await db.get(Project, project_id)
             _user_input: dict = (_proj.branding_data or {}) if _proj else {}
             _company_url: str = (_proj.company_url if _proj else None) or "https://example.com"
+            _template_key: Optional[str] = _proj.template_key if _proj else None
 
         # ── Step 1: Crawl website ────────────────────────────────────────────
         try:
@@ -157,6 +158,7 @@ async def _run_analysis_inline(project_id: str, job_id: str) -> None:
             branding=branding_data,
             logo_bytes=logo_bytes,
             slide_backgrounds=slide_backgrounds,
+            template_key=_template_key,
         )
         await update_job(total_progress=95, message="Presentation rendered")
 

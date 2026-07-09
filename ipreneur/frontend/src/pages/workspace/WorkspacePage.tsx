@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
@@ -82,18 +82,26 @@ export default function WorkspacePage() {
     onError: () => toast.error("Couldn't save template choice"),
   });
 
+  // Templated decks export client-side (pixel-exact to the previewed theme);
+  // TemplatedDeckSection registers its theme-aware exporter here. Non-templated
+  // decks fall back to the backend PPTX render.
+  const templatedExportRef = useRef<null | (() => Promise<void>)>(null);
   const [isExporting, setIsExporting] = useState(false);
   const handleExport = async () => {
     if (!projectId) return;
     setIsExporting(true);
     try {
-      const blob = await projectsApi.export(projectId, "pptx");
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${project?.name ?? "pitch-deck"}.pptx`;
-      a.click();
-      URL.revokeObjectURL(url);
+      if (templatedExportRef.current) {
+        await templatedExportRef.current();
+      } else {
+        const blob = await projectsApi.export(projectId, "pptx");
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${project?.name ?? "pitch-deck"}.pptx`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
     } catch {
       toast.error("Export failed — please try again");
     } finally {
@@ -217,6 +225,8 @@ export default function WorkspacePage() {
                     initialKey={(project as any).templateKey}
                     assets={(project as any).assets}
                     onPersist={(key) => saveTemplate(key)}
+                    fileName={project?.name ?? "pitch-deck"}
+                    registerExport={(fn) => { templatedExportRef.current = fn; }}
                   />
                 ) : (
                   <DeckPreview deckContent={project.deckContent} branding={project.brandingData} />

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { THEMES, getTheme, ensureDeckFonts, DEFAULT_THEME_KEY } from "./themes";
 import { TemplateDeckData } from "./types";
 import { TemplatedDeck, renderSlide } from "./TemplatedDeck";
+import { exportTemplatedDeckToPptx } from "./exportDeck";
 
 // Uploaded image URLs are relative ("/uploads/..") and served by the backend,
 // not the Vite dev server — prefix them with the API origin.
@@ -25,9 +26,17 @@ interface Props {
   initialKey?: string | null;
   assets?: RawAssets | null;
   onPersist?: (key: string) => void;
+  /** File name (without extension) to use for the exported PPTX. */
+  fileName?: string;
+  /**
+   * Registers a theme-aware export function with the parent so the topbar's
+   * "Export PPTX" button downloads exactly the deck shown here. Re-registered
+   * whenever the selected theme or data changes.
+   */
+  registerExport?: (fn: () => Promise<void>) => void;
 }
 
-export function TemplatedDeckSection({ data: rawData, initialKey, assets, onPersist }: Props) {
+export function TemplatedDeckSection({ data: rawData, initialKey, assets, onPersist, fileName, registerExport }: Props) {
   useEffect(() => { ensureDeckFonts(); }, []);
 
   // Normalize backend assets (camel/snake) → absolute URLs, inject into deck data.
@@ -52,6 +61,15 @@ export function TemplatedDeckSection({ data: rawData, initialKey, assets, onPers
   useEffect(() => {
     if (initialKey) setActiveKey(initialKey);
   }, [initialKey]);
+
+  // Keep the parent's export handler pointed at the currently-shown deck so the
+  // download always matches the previewed theme (and injected assets).
+  useEffect(() => {
+    if (!registerExport) return;
+    registerExport(() =>
+      exportTemplatedDeckToPptx(data, theme, fileName || "pitch-deck")
+    );
+  }, [registerExport, data, theme, fileName]);
 
   const select = (key: string) => {
     if (key === activeKey) return;

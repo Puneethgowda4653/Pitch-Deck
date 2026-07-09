@@ -126,6 +126,7 @@ async def _run_pipeline_async(
     async with get_db_context() as db:
         project_obj = await db.get(Project, project_id)
         project_branding = project_obj.branding_data or {}
+        project_template_key = project_obj.template_key
 
     try:
         # ── Step 1: Crawl entire website (0–12%) ──────────────────────────────
@@ -224,7 +225,11 @@ async def _run_pipeline_async(
         # ── Step 6: Render PPTX (82–94%) ─────────────────────────────────────
         await progress("rendering_ppt", 0, 82, "Rendering branded PPTX presentation…")
         renderer = PPTRenderer()
-        pptx_bytes = await renderer.render(deck_content=deck_content, branding=branding_data)
+        pptx_bytes = await renderer.render(
+            deck_content=deck_content,
+            branding=branding_data,
+            template_key=project_template_key,
+        )
         await progress("rendering_ppt", 100, 94, f"PPTX rendered ({len(pptx_bytes):,} bytes)")
 
         # ── Step 7: Upload to S3/MinIO (94–100%) ──────────────────────────────
