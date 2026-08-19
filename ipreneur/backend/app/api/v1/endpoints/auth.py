@@ -53,22 +53,38 @@ def _create_access_token(user_id: str) -> str:
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    existing = (await db.execute(select(User).where(User.email == payload.email))).scalar_one_or_none()
+    # Check if user exists
+    result = await db.execute(select(User).where(User.email == payload.email))
+    existing = result.scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
-    user = User(email=payload.email, name=payload.name, hashed_password=_hash_password(payload.password))
+
+    # Insert new user
+    user = User(
+        email=payload.email,
+        name=payload.name,
+        hashed_password=_hash_password(payload.password),
+    )
     db.add(user)
-    await db.commit()
+    await db.flush()
     await db.refresh(user)
-    return {"success": True, "data": {"user": UserOut.model_validate(user), "access_token": _create_access_token(user.id)}}
+
+    user_dict = UserOut.model_validate(user).model_dump()
+    return {"success": True, "data": {"user": user_dict, "access_token": _create_access_token(user.id)}}
 
 
 @router.post("/login")
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
-    user = (await db.execute(select(User).where(User.email == payload.email))).scalar_one_or_none()
-    if not user or not _verify_password(payload.password, user.hashed_password):
+    result = await db.execute(select(User).where(User.email == payload.email))
+    user = result.scalar_one_or_none()
+    if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    return {"success": True, "data": {"user": UserOut.model_validate(user), "access_token": _create_access_token(user.id)}}
+
+    if not _verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    user_dict = UserOut.model_validate(user).model_dump()
+    return {"success": True, "data": {"user": user_dict, "access_token": _create_access_token(user.id)}}
 
 
 @router.post("/logout")
@@ -81,6 +97,5 @@ async def get_me(
     db: AsyncSession = Depends(get_db),
 ):
     """Get current user from token — uses auth dependency."""
-    from app.api.deps.auth import get_current_user
     # This is a placeholder — the actual /users/me endpoint handles this
     return {"message": "Use /api/v1/users/me instead"}

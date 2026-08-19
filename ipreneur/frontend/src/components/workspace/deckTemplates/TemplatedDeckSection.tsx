@@ -8,6 +8,7 @@ import { THEMES, getTheme, ensureDeckFonts, DEFAULT_THEME_KEY } from "./themes";
 import { TemplateDeckData } from "./types";
 import { TemplatedDeck, renderSlide } from "./TemplatedDeck";
 import { exportTemplatedDeckToPptx } from "./exportDeck";
+import type { EditPath } from "./editing/editableText";
 
 // Uploaded image URLs are relative ("/uploads/..") and served by the backend,
 // not the Vite dev server — prefix them with the API origin.
@@ -34,9 +35,12 @@ interface Props {
    * whenever the selected theme or data changes.
    */
   registerExport?: (fn: () => Promise<void>) => void;
+  /** Enables click-to-edit text on the live deck (EditorPage only). */
+  editable?: boolean;
+  onEdit?: (path: EditPath, value: string | number) => void;
 }
 
-export function TemplatedDeckSection({ data: rawData, initialKey, assets, onPersist, fileName, registerExport }: Props) {
+export function TemplatedDeckSection({ data: rawData, initialKey, assets, onPersist, fileName, registerExport, editable, onEdit }: Props) {
   useEffect(() => { ensureDeckFonts(); }, []);
 
   // Normalize backend assets (camel/snake) → absolute URLs, inject into deck data.
@@ -127,7 +131,7 @@ export function TemplatedDeckSection({ data: rawData, initialKey, assets, onPers
       </div>
 
       {/* ── Live deck in the selected template ────────────────────── */}
-      <TemplatedDeck data={data} theme={theme} />
+      <TemplatedDeck data={data} theme={theme} editable={editable} onEdit={onEdit} />
     </div>
   );
 }

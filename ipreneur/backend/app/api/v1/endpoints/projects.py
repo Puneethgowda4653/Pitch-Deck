@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from app.api.deps.auth import get_current_user
-from app.db.session import get_db, get_db_context
+from app.db.session import get_db, get_db_context, get_background_db_context
 from app.models.models import Job, Project, User, Presentation
 from app.schemas.project import (
     ProjectCreate,
@@ -37,7 +37,7 @@ router = APIRouter()
 
 async def _run_analysis_inline(project_id: str, job_id: str) -> None:
     """Run the pitch deck pipeline using the MasterDeckAgent — one Gemini call does everything."""
-    from app.services.crawler.web_crawler import WebCrawler
+    from app.services.crawler.web_crawler import WebCrawler, CrawlResult
     from app.agents.master.master_agent import MasterDeckAgent, BrandingResult
     from app.ppt.engine.renderer import PPTRenderer
     from app.services.storage.s3_client import StorageClient
@@ -46,11 +46,11 @@ async def _run_analysis_inline(project_id: str, job_id: str) -> None:
     from datetime import datetime, timezone
 
     async def update_job(**kwargs):
-        async with get_db_context() as db:
+        async with get_background_db_context() as db:
             await db.execute(update(Job).where(Job.id == job_id).values(**kwargs))
 
     async def update_project(**kwargs):
-        async with get_db_context() as db:
+        async with get_background_db_context() as db:
             await db.execute(update(Project).where(Project.id == project_id).values(**kwargs))
 
     logger.info(f"🚀 Pipeline starting | project={project_id} job={job_id}")
@@ -58,27 +58,34 @@ async def _run_analysis_inline(project_id: str, job_id: str) -> None:
 
     try:
         # Load project data
-        async with get_db_context() as db:
+        async with get_background_db_context() as db:
             _proj = await db.get(Project, project_id)
             _user_input: dict = (_proj.branding_data or {}) if _proj else {}
-            _company_url: str = (_proj.company_url if _proj else None) or "https://example.com"
-            _template_key: Optional[str] = _proj.template_key if _proj else None
+            _company_url: Optional[str] = _proj.company_url if _proj else None
+            _saved_template_key: Optional[str] = _proj.template_key if _proj else None
 
-        # ── Step 1: Crawl website ────────────────────────────────────────────
-        try:
-            logger.info(f"📍 Step 1: Starting crawler | url={_company_url}")
-            await update_job(current_step="crawling", total_progress=0, message="Crawling website...")
-            
-            crawler = WebCrawler(timeout_ms=settings.crawl_timeout_ms, max_pages=settings.crawl_max_pages)
-            logger.info(f"📍 Crawler instantiated, starting crawl...")
-            
-            crawl_result = await crawler.crawl(project_id=project_id)
-            logger.info(f"✓ Crawl complete: {crawl_result.pages_crawled} pages")
-            
-            await update_job(total_progress=25, message=f"Crawled {crawl_result.pages_crawled} pages")
-        except Exception as crawl_error:
-            logger.exception(f"❌ Crawler failed: {crawl_error}")
-            raise
+        has_website = bool(_company_url)
+
+        # ── Step 1: Crawl website (only if one was provided) ─────────────────
+        if has_website:
+            try:
+                logger.info(f"📍 Step 1: Starting crawler | url={_company_url}")
+                await update_job(current_step="crawling", total_progress=0, message="Crawling website...")
+
+                crawler = WebCrawler(timeout_ms=settings.crawl_timeout_ms, max_pages=settings.crawl_max_pages)
+                logger.info(f"📍 Crawler instantiated, starting crawl...")
+
+                crawl_result = await crawler.crawl(project_id=project_id)
+                logger.info(f"✓ Crawl complete: {crawl_result.pages_crawled} pages")
+
+                await update_job(total_progress=25, message=f"Crawled {crawl_result.pages_crawled} pages")
+            except Exception as crawl_error:
+                logger.exception(f"❌ Crawler failed: {crawl_error}")
+                raise
+        else:
+            logger.info(f"📍 Step 1: No website — skipping crawl, using founder-provided details | project={project_id}")
+            await update_job(current_step="crawling", total_progress=25, message="Using founder-provided company details...")
+            crawl_result = CrawlResult(base_url="")
 
         # ── Step 2: Master AI — research + generate all slides in one call ───
         try:
@@ -90,7 +97,7 @@ async def _run_analysis_inline(project_id: str, job_id: str) -> None:
             logger.info(f"📍 Master agent instantiated, calling generate()")
             
             master_result = await master_agent.generate(
-                company_url=_company_url,
+                company_url=_company_url or "",
                 website_content=crawl_result.text_summary or "",
                 website_colors=crawl_result.all_colors or [],
                 team_info=crawl_result.team_info or [],
@@ -152,6 +159,9 @@ async def _run_analysis_inline(project_id: str, job_id: str) -> None:
 
         # ── Step 4: Render PPT ───────────────────────────────────────────────
         await update_job(current_step="rendering", total_progress=80, message="Rendering PPTX...")
+        # A user-chosen theme always wins; otherwise fall back to the theme the
+        # AI itself judged best for this company, instead of always the default.
+        _template_key = _saved_template_key or (master_result.template_data or {}).get("theme_suggestion")
         renderer = PPTRenderer()
         pptx_bytes = await renderer.render(
             deck_content=deck_content,
@@ -159,6 +169,7 @@ async def _run_analysis_inline(project_id: str, job_id: str) -> None:
             logo_bytes=logo_bytes,
             slide_backgrounds=slide_backgrounds,
             template_key=_template_key,
+            template_data=master_result.template_data,
         )
         await update_job(total_progress=95, message="Presentation rendered")
 
@@ -170,12 +181,15 @@ async def _run_analysis_inline(project_id: str, job_id: str) -> None:
             filename=f"{project_id}/presentation.pptx",
         )
 
-        # Persist results
-        async with get_db_context() as db:
+        # Persist results — merge the AI-derived branding fields into the ORIGINAL
+        # branding_data instead of replacing it, so founder-entered context (problem
+        # statement, founders, financials, etc. — critical for no-website projects,
+        # which have no other source of that data) survives a retry.
+        async with get_background_db_context() as db:
             await db.execute(
                 update(Project).where(Project.id == project_id).values(
                     status="ready",
-                    branding_data=branding_data.model_dump(),
+                    branding_data={**_user_input, **branding_data.model_dump()},
                     research_data=master_result.research_summary,
                     deck_content=master_result.to_deck_content_dict(),
                 )
@@ -226,7 +240,7 @@ async def _run_analysis_safe(project_id: str, job_id: str) -> None:
     
     # Immediate database update to confirm thread is running
     try:
-        async with get_db_context() as db:
+        async with get_background_db_context() as db:
             await db.execute(
                 update(Job).where(Job.id == job_id).values(
                     message="THREAD STARTED: Analysis pipeline initializing..."
@@ -279,7 +293,7 @@ async def create_project(
         project = Project(
             user_id=current_user.id,
             name=payload.name,
-            company_url=str(payload.company_url),
+            company_url=str(payload.company_url) if payload.company_url else None,
             status="draft",
             branding_data=payload.branding_data,
         )
@@ -364,6 +378,21 @@ async def update_project(
         project.name = payload.name
     if payload.template_key is not None:
         project.template_key = payload.template_key
+    if payload.template_data is not None:
+        # Two-level shallow merge: preserve deck_content's sibling "slides" key
+        # (a full-blob overwrite would destroy it), and merge the newly-validated
+        # sections ON TOP of the previously-persisted template_data rather than
+        # replacing it outright — a section that fails re-validation here keeps
+        # its last-known-good value instead of vanishing (the frontend's slide
+        # builders mostly don't guard against a missing section, so a dropped
+        # section would crash the deck preview, not degrade gracefully).
+        from app.ppt.engine.template_schema import validate_template_data
+
+        validated = validate_template_data(payload.template_data)
+        existing_deck_content = project.deck_content or {}
+        existing_template_data = existing_deck_content.get("template_data") or {}
+        merged_template_data = {**existing_template_data, **validated}
+        project.deck_content = {**existing_deck_content, "template_data": merged_template_data}
 
     await db.commit()
     await db.refresh(project)

@@ -46,7 +46,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   rows?: number;
 }
 
-export const Input = React.forwardRef<HTMLInputElement, InputProps>(
+export const Input = React.forwardRef<HTMLInputElement | HTMLTextAreaElement, InputProps>(
   function Input({ label, hint, error, icon, id, multiline = false, rows = 4, className = "", style, ...props }, ref) {
     useInjectStyle("ipr-input-css", CSS);
     const autoId = React.useId();
@@ -59,9 +59,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         <div className="ipr-input-wrap">
           {icon && !multiline ? <span className="ipr-input-wrap__icon" aria-hidden="true">{icon}</span> : null}
           {multiline ? (
-            <textarea id={fieldId} className={inputCls} rows={rows} {...(props as any)} />
+            <textarea id={fieldId} ref={ref as React.Ref<HTMLTextAreaElement>} className={inputCls} rows={rows} {...(props as any)} />
           ) : (
-            <input id={fieldId} ref={ref} className={inputCls} {...props} />
+            <input id={fieldId} ref={ref as React.Ref<HTMLInputElement>} className={inputCls} {...props} />
           )}
         </div>
         {error ? <span className="ipr-field__err">{error}</span> : hint ? <span className="ipr-field__hint">{hint}</span> : null}

@@ -176,6 +176,28 @@ class MasterDeckAgent:
         research_data = await self._research_pass(
             company_url, website_content, team_info or [], pricing_info or [], user_inputs
         )
+
+        # A founder who filled in the no-website manual intake form has, by definition,
+        # no verifiable web presence yet — any "founders" a generic name search turns up
+        # are almost always a different company entirely (e.g. searching a common name
+        # like "Nimbus" surfaces an unrelated DAO/token project's founders). Self-reported
+        # data is ground truth here and takes priority over speculative search hits.
+        manual_founders = user_inputs.get("founders") or []
+        normalized_founders = [
+            {
+                "name": f.get("name", "").strip(),
+                "title": f.get("role", "").strip(),
+                "prior": f.get("one_liner", "").strip(),
+                "source": "founder-provided",
+                "confidence": "HIGH",
+            }
+            for f in manual_founders
+            if f.get("name", "").strip()
+        ]
+        if normalized_founders:
+            research_data["founders"] = normalized_founders
+            logger.info(f"👤 Using {len(normalized_founders)} founder-provided team member(s) — self-reported, overrides web search")
+
         logger.info(f"🔬 Research complete | founders={len(research_data.get('founders', []))} | competitors={len(research_data.get('competitors', []))}")
 
         # ── Pass 2: Slide generation ────────────────────────────────────────────
@@ -230,7 +252,7 @@ class MasterDeckAgent:
                 primary_color=self._pick_color(website_colors, b.get("primary_color", "#2540B5")),
                 secondary_color=self._pick_color(website_colors[1:], b.get("secondary_color", "#7B2CBF")),
                 logo_url=logo_url,
-                target_audience=b.get("target_audience", ""),
+                target_audience=user_inputs.get("target_customer") or b.get("target_audience", ""),
                 business_model=user_inputs.get("business_model") or b.get("business_model", ""),
             )
 
@@ -251,8 +273,9 @@ class MasterDeckAgent:
                 for i, s in enumerate(data.get("slides", []))
             ]
 
-            template_data = data.get("template_data") or {}
-            if isinstance(template_data, dict) and template_data:
+            from app.ppt.engine.template_schema import validate_template_data
+            template_data = validate_template_data(data.get("template_data") or {})
+            if template_data:
                 # Fill any missing identity fields the renderer relies on.
                 template_data.setdefault("company", branding.company_name)
                 template_data.setdefault("mark", (branding.company_name or "?")[:1].upper())
@@ -290,6 +313,7 @@ class MasterDeckAgent:
         Searches the live internet for founders, funding, competitors, market data.
         Falls back to training knowledge if search grounding fails.
         """
+        company_name = user_inputs.get("company_name", "")
         prompt = self._build_research_prompt(company_url, website_content, team_info, pricing_info, user_inputs)
 
         def _is_quota_error(e: Exception) -> bool:
@@ -430,6 +454,24 @@ If you genuinely cannot find anyone, return {{"founders": []}} — DO NOT invent
                 continue
         return fallback
 
+    @staticmethod
+    def _founder_provided_block(u: dict) -> str:
+        """Stand-in for crawled website content when the company has no live site yet."""
+        return f"""Problem being solved:
+{u.get('problem_statement') or 'Not provided'}
+
+Solution / what we're building:
+{u.get('solution_description') or 'Not provided'}
+
+Target customer:
+{u.get('target_customer') or 'Not specified — infer from the problem/solution and industry'}
+
+Early validation / traction (founder-reported — use exactly, do not inflate or invent additional traction):
+{u.get('traction_notes') or 'None yet — pre-launch/idea-stage company. Do NOT fabricate customers, revenue, or usage numbers.'}
+
+Founder-named competitors (supplement with your own industry knowledge as well):
+{u.get('competitor_notes') or 'None provided — derive competitors from the industry.'}"""
+
     def _build_research_prompt(
         self,
         company_url: str,
@@ -441,6 +483,8 @@ If you genuinely cannot find anyone, return {{"founders": []}} — DO NOT invent
         company_name = u.get("company_name", "")
         industry = u.get("industry", "")
         team_block = "\n".join(f"  • {t}" for t in team_info[:30]) if team_info else "  • None extracted"
+        website_line = company_url or "Not yet live — idea-stage company"
+        content_block = website_content[:8000] if website_content.strip() else self._founder_provided_block(u)
 
         return f"""You are a world-class company research analyst with live access to Google Search.
 
@@ -455,7 +499,7 @@ Real people have verifiable names on the company website or LinkedIn. FIND them 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMPANY TO RESEARCH
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Website: {company_url}
+Website: {website_line}
 Company Name: {company_name or "→ extract from website content below"}
 Industry: {industry or "→ extract from website content below"}
 
@@ -463,7 +507,7 @@ Team members found on website (use as search leads — verify each by name):
 {team_block}
 
 Website content:
-{website_content[:8000]}
+{content_block}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RESEARCH TASKS
@@ -587,25 +631,38 @@ Return ONLY valid JSON:
         industry = u.get("industry", "")
         pricing_block = "\n".join(f"  • {p}" for p in pricing_info[:5]) if pricing_info else "  • No pricing info found on website"
 
-        # Serialize verified research for injection (cap size to stay within TPM)
-        research_json_full = json.dumps(research_data, indent=2) if research_data else "{}"
+        # Serialize verified research for injection (cap size to stay within TPM).
+        # "sources" is a list of long grounding-redirect URLs kept for audit purposes —
+        # it isn't used by any slide instruction below, but sitting before founders/
+        # competitors/market in the dict it can eat the entire truncation budget on
+        # well-sourced companies, silently dropping the fields the prompt actually needs
+        # (e.g. founders truncated away entirely). Excluded from what the model sees.
+        research_for_prompt = {k: v for k, v in research_data.items() if k != "sources"} if research_data else {}
+        research_json_full = json.dumps(research_for_prompt, indent=2) if research_for_prompt else "{}"
         research_json = research_json_full[:6000]
         has_research = bool(research_data.get("founders") or research_data.get("competitors") or research_data.get("market"))
         has_real_team = bool(research_data.get("founders"))
+        website_line = company_url or "Not yet live — idea-stage company"
+        has_website_content = bool(website_content.strip())
+        content_header = (
+            "WEBSITE CONTENT (primary source for product, features, tone)" if has_website_content
+            else "FOUNDER-PROVIDED COMPANY DESCRIPTION (primary source — no live website yet; this is an idea-stage / pre-launch company)"
+        )
+        content_block = website_content[:8000] if has_website_content else self._founder_provided_block(u)
 
         return f"""You are the world's best pitch deck writer and slide designer.
 A research agent has already done the deep company and market research. Your ONLY job is to
 format the provided data into a compelling 12-slide investor pitch deck JSON.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VERIFIED RESEARCH DATA {"(HIGH CONFIDENCE — use this directly)" if has_research else "(empty — company unknown, use website only)"}
+VERIFIED RESEARCH DATA {"(HIGH CONFIDENCE — use this directly)" if has_research else "(empty — company unknown, use the company description below only)"}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {research_json}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMPANY URL & USER INPUTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-URL: {company_url}
+URL: {website_line}
 Company Name: {company_name or "→ extract from website content"}
 Industry: {industry or "→ extract from website content"}
 
@@ -613,9 +670,9 @@ Founder-provided financials (ground truth — use exactly):
 {financials_block}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WEBSITE CONTENT (primary source for product, features, tone)
+{content_header}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{website_content[:8000]}
+{content_block}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PRICING SIGNALS
@@ -680,6 +737,8 @@ SLIDE-SPECIFIC RULES:
     card title = "Full Name — Role"  |  card body = education + prior companies
     card metric = notable credential (e.g. "Forbes 30U30")
     ⛔ NEVER invent names, titles, or bios. Use a person ONLY if present in research_data.founders.
+    Entries with source="founder-provided" are founder self-reported ground truth — use them
+    exactly like web-verified ones, do NOT treat them as fabrication.
     If research_data.founders is empty → 1 honest placeholder:
       title="Leadership", body="Team details available on request" (do NOT fabricate people)
 
@@ -714,6 +773,35 @@ SLIDE-SPECIFIC RULES:
       → Calculate X and N from founder's MRR × growth rate compounded annually
       → If no financials provided, project based on industry benchmarks for stage
 
+SPECIFICITY RULE — applies to every bullet, card, headline, and lead-in in
+BOTH "slides" and "template_data":
+Before writing any claim, silently ask: "Could I paste this sentence into a
+rival company's deck in this same industry without changing a word?" If yes,
+REWRITE IT so it only works for THIS company — anchor it to a specific number,
+mechanism, named data source, customer segment, or fact drawn from the
+research/website content above. Generic industry-truism sentences ("we
+leverage AI to drive efficiency", "the market is growing rapidly", "our
+platform is easy to use") are FORBIDDEN even as filler.
+
+BEFORE (generic — could be any company in this space):
+  "**AI-Powered:** We use artificial intelligence to help businesses make
+  better decisions faster."
+AFTER (specific — anchored to an actual mechanism/number):
+  "**Sub-200ms Scoring:** Every transaction is re-scored in <200ms using our
+  real-time risk model, vs. the 2-3 second batch checks legacy processors run."
+
+BEFORE (generic market claim):
+  "The industry is experiencing rapid digital transformation and growing
+  demand."
+AFTER (specific, sourced):
+  "India's quick-commerce GMV grew 3.2x from 2022-2024 (RedSeer) as 10-minute
+  delivery shifted from novelty to default expectation in metro grocery."
+
+This applies with extra weight to the Product, Business Model, and Market
+Opportunity slides — their instructions above are the thinnest on
+company-specific grounding, so they're the easiest to accidentally fill with
+industry boilerplate. Re-read this rule before writing those three.
+
 GENERAL RULES:
   - Every bullet must have a bold lead-in: "**Speed:** 10x faster than..."
   - data_points values must be punchy: "$47B", "40% CAGR"
@@ -722,6 +810,10 @@ GENERAL RULES:
   - If research_data is empty for competitors → derive from the industry in the website content (always possible)
   - If research_data is empty for market → estimate from the industry (every industry has published reports)
   - Every slide must contain real, specific, useful content — no placeholders, no vague filler text
+  - SPECIFICITY: every claim must be traceable to a fact in the research/website data above — no
+    interchangeable industry-generic sentences (see SPECIFICITY RULE above).
+  - Numbers over adjectives: prefer "$47B market growing 40% CAGR" over "a large and growing market";
+    prefer "200ms response time" over "lightning fast".
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ALSO REQUIRED: "template_data" (sibling of "slides")
@@ -742,6 +834,7 @@ object shown below. This drives a premium visual template renderer. Rules:
   - product.steps[].n = "01","02","03"; each step has 2-3 short "tags" (feature chips). model.flow = 3–4 short nodes.
   - Pick theme_suggestion from the allowed keys based on the industry/mood.
   - team.members: include ONLY real people from research_data.founders. ⛔ NEVER invent names/titles/bios.
+    Entries with source="founder-provided" are self-reported ground truth, not fabrication — use them directly.
     If research_data.founders is empty → members:[{{"i":"","n":"Leadership","r":"Team","b":"Details available on request"}}].
   - Fill every OTHER field with real, specific content. Honest gaps beat fabricated facts —
     especially for people. Competitors/market may be reasoned from the industry.

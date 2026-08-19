@@ -359,3 +359,231 @@ Applied to all string fields during slide parsing: `title`, `subtitle`, `body`, 
 **Notes:**
 - This confirms the local stack is functional for protected user flows and project generation.
 - Next step is exporting the PPTX and validating the final presentation artifact.
+
+---
+
+## Session: 2026-08-19
+
+**Architecture note:** the pipeline described in Sessions 1–2 above (Celery worker,
+MinIO, a separate Research/Analysis/Content agent chain, DuckDuckGo search) has
+since been superseded. The live pipeline as of this session is: a single
+`MasterDeckAgent` (two-pass Gemini call — research then generation, using
+Gemini's own Google Search grounding instead of DuckDuckGo), running inline in
+a background thread with its own event loop (no Celery), against **Supabase**
+for both Postgres and file storage (no local Docker Postgres/MinIO required
+for dev). `docker-compose.yml` still exists but is no longer the dev path.
+
+---
+
+### 21. Fixed "Future attached to a different loop" crash on every analysis run
+
+**Problem:** `_run_analysis_inline` runs in a dedicated background thread with
+its own asyncio event loop (not Celery). `WebCrawler.crawl()` was looking up
+the project's URL via `get_db_context()`, which binds to the **main** uvicorn
+event loop's DB engine — awaiting that connection from a different loop threw
+`RuntimeError: Future ... attached to a different loop` on essentially every
+generation attempt.
+
+**Fix:** Changed `WebCrawler.crawl()` to use `get_background_db_context()`
+(creates a loop-scoped engine) instead. `File: ipreneur/backend/app/services/crawler/web_crawler.py`
+
+---
+
+### 22. Fixed "Parsed deck JSON has no slides" — Gemini thinking-budget misconfiguration
+
+**Problem:** `.env` had `GEMINI_THINKING_BUDGET=8192` equal to
+`GEMINI_MAX_TOKENS=8192`. For `gemini-2.5-flash`, thinking tokens count
+against `maxOutputTokens` — with the budgets equal, the model spent the
+entire token budget "thinking" and returned an empty/truncated response, so
+the deck JSON had no `slides` key.
+
+**Fix:** `GEMINI_MAX_TOKENS` → 32768, `GEMINI_THINKING_BUDGET` → 2048 (both in
+`.env` and the stale `.env.example`, which had the same landmine for any
+fresh setup). Also bumped the Python-level default in `config.py` from 8192
+→ 16384 as a safety net.
+
+---
+
+### 23. No-website intake flow — decks for idea-stage companies
+
+**Objective:** Let a founder with no live website yet generate a deck from a
+structured questionnaire instead of a crawled URL.
+
+**Built:**
+- `NewProjectPage.tsx`: new "I don't have a website yet" toggle reveals
+  required fields (problem statement, solution description, target customer,
+  a repeatable founders list) plus optional traction/competitor notes.
+- Backend: `company_url` made nullable end-to-end (`ProjectCreate`, `Project`
+  model + one-time `ALTER TABLE` against Supabase); `_run_analysis_inline`
+  skips crawling when no URL is present (previously silently crawled
+  `https://example.com` as a fallback — removed).
+- `master_agent.py`: fixed a live `NameError` in `_research_pass`'s call to
+  `_team_search` (`company_name` was never defined in scope) — was firing on
+  every company web search couldn't find, silently degrading research to
+  `{}`. Manually-entered founders now take priority over web-search results
+  for the Team slide (search on a generic company name easily returns an
+  unrelated company's founders — self-reported data is more trustworthy here).
+- Prompt: added a "founder-provided company description" block that replaces
+  the crawled-website section when there's no URL.
+
+`Files: frontend/src/pages/workspace/NewProjectPage.tsx, backend/app/schemas/project.py, backend/app/models/models.py, backend/app/api/v1/endpoints/projects.py, backend/app/agents/master/master_agent.py`
+
+---
+
+### 24. Fixed silent textarea validation failure (Input.tsx)
+
+**Problem:** The shared `Input` component's `multiline` (textarea) mode never
+forwarded React Hook Form's `ref` — only the plain `<input>` branch did.
+Typed text updated the DOM but never reached RHF's tracked form values, so
+required-textarea validation (problem/solution statement above) always
+reported empty, blocking submission no matter what was typed. `multiline` had
+never been exercised anywhere in the codebase before this session.
+
+**Fix:** Forward `ref` to both the `<input>` and `<textarea>` branches.
+`File: frontend/src/components/ui/Input.tsx`
+
+---
+
+### 25. Wired real file storage to Supabase Storage
+
+**Problem:** Generated `.pptx` files were always landing on local disk
+regardless of any S3/MinIO config — root cause was `boto3` never being
+installed (not even listed in `requirements.txt`), so every upload attempt
+hit `ModuleNotFoundError`, caught by a broad `except`, silently falling back
+to local save.
+
+**Fix:** Installed `boto3` (added to `requirements.txt`), pointed `.env`'s S3
+config at Supabase Storage's S3-compatible endpoint, and flipped the `decks`
+bucket's `public` flag directly in `storage.buckets` (the S3 protocol can't
+set that itself). Also fixed the `/presentations/{id}/download` fallback
+path, which parsed the storage object key out of `file_url` by splitting on
+`/storage/` — worked for old local paths, broke on real Supabase URLs (which
+contain `/storage/` earlier in the path for an unrelated reason); now derives
+the key directly from the known `{project_id}/presentation.pptx` convention.
+
+Verified end-to-end with a real generation run — confirmed public download,
+correct byte size, correct content-type.
+
+---
+
+### 26. Migrated pre-Supabase local data
+
+**Found:** A leftover `ipreneur.db` SQLite file from before the Supabase
+migration, holding 1 orphaned user account and 1 incomplete project ("nvest",
+movate.com — had hit the exact bug from #22). Migrated the project into the
+current Supabase account (status set to `error` with an explanatory message,
+so "Retry Analysis" regenerates it cleanly now that the underlying bug is
+fixed).
+
+---
+
+### 27. Pitch deck quality upgrade — Phase 1 (renderer + prompt)
+
+**Objective:** The AI already generates a rich `template_data` payload (KPI
+highlights, real market/traction numbers, a competitor matrix, founder bios)
+for the 10-theme web preview — but the actual downloadable `.pptx`
+(`PPTRenderer`, python-pptx) only ever read the flatter `slides[]` payload,
+silently discarding all of that.
+
+**Built:**
+- `template_data` now flows into `PPTRenderer.render()` (new
+  `template_schema.py`: pydantic validation per-section, so one malformed
+  section degrades one slide instead of breaking the deck).
+- Real native charts replace decorative fakes: TAM/SAM/SOM was 3 overlapping
+  ovals with **hardcoded** ring sizes that didn't scale with the real
+  numbers — now a real, correctly-scaled bar chart. Added a traction column
+  chart and an ask-allocation doughnut chart (both previously absent), and a
+  real competitor comparison table (previously generic cards).
+- Brand colors now actually apply (the `branding` param was accepted by
+  `render()` but never read before).
+- Per-theme title fonts (body text stays on the proven Calibri baseline).
+- Fixed logo distortion (now aspect-correct) and a silent SVG-logo failure
+  (python-pptx can't embed SVG; now decodes via Pillow or logs why it's
+  skipped, instead of failing silently).
+- Deleted `theme_engine.py`/`slide_factory.py` — an abandoned earlier
+  renderer attempt, unused, still had literal `# TODO` stubs in it.
+- Added a "specificity rule" to the generation prompt targeting generic,
+  swappable-company AI-deck language, reinforced on the Product/Business-
+  Model/Market slides specifically.
+
+Verified with real Gemini generations + direct XML inspection of the output
+files (chart types, table structure, brand-color contrast, font names).
+
+`Primary file: backend/app/ppt/engine/renderer.py` (+ `themes.py`, `template_schema.py` new, `master_agent.py`)
+
+---
+
+### 28. Inline deck text editing — `/projects/:id/editor` is no longer a stub
+
+**Objective:** Let a founder click into any slide's title/bullets/KPI
+numbers and fix them directly, then save — no layout/image/theme changes.
+(`EditorPage.tsx` had been a stub since the very first commit to this repo —
+confirmed via git log — and was explicitly listed as a TODO in this log's
+own Session 2026-05-20 entry, never revisited until now.)
+
+**Built:**
+- `TemplatedDeck.tsx`'s ~13 slide-builder functions now accept an `EditCtx`
+  (default no-op, so every existing caller — theme thumbnails, PPTX export —
+  is unaffected). Editable text renders as a clickable marker; a portaled
+  floating `<input>`/`<textarea>` (new `FloatingTextEditor.tsx`) positions
+  itself over the real on-screen glyph and edits at a legible fixed size
+  regardless of the (often heavily scaled-down) preview zoom.
+- The traction chart's on-chart numbers (SVG `<text>`, not plain DOM text)
+  get the same treatment via `<tspan>` + `getScreenCTM()`/`getBBox()`
+  coordinate math — no separate interaction pattern needed for the one
+  trickier slide.
+- New `setByPath.ts` — immutable path-based updates to the local edit draft.
+- Backend: `ProjectUpdate.template_data` + a two-level merge in
+  `update_project` (preserves `deck_content.slides`; a section that fails
+  re-validation on save keeps its last-known-good value instead of
+  vanishing, since the frontend renderer mostly doesn't guard against a
+  missing section). The existing `/download` endpoint already re-renders
+  from `deck_content` on every call — saved edits show up in PPTX downloads
+  with no further changes needed there.
+
+`Files (new): frontend/src/components/workspace/deckTemplates/editing/{editableText,FloatingTextEditor,setByPath}, frontend/src/pages/editor/EditorPage.tsx`
+`Files (changed): TemplatedDeck.tsx, TemplatedDeckSection.tsx, services/api/projects.ts, backend/app/schemas/project.py, backend/app/api/v1/endpoints/projects.py`
+
+**Not yet verified in a live browser** (no browser automation tool available
+this session) — TypeScript compiles clean, backend merge logic tested
+directly against real DB rows, but the interactive click → edit → save flow
+itself still needs a hands-on pass.
+
+---
+
+### 29. Fixed multiline paragraph fields breaking in the inline editor
+
+**Problem:** `FloatingTextEditor` (built in #28) had full `<textarea>` support,
+but no `editableText()` call site anywhere in `TemplatedDeck.tsx` ever passed
+`{ multiline: true }` — so every field, including 3-line paragraphs like the
+executive summary lead, rendered as a single-line `<input>`. Combined with an
+auto `.select()` on focus, clicking into a paragraph showed a broken,
+horizontally-scrolled fragment of the text instead of the full wrapped block.
+
+**Fix:**
+- `FloatingTextEditor.tsx` now auto-detects multiline from the marker's own
+  measured height (`rect.height > fontSize × 1.6` ⇒ wrapped text), so any
+  field that visually wraps gets a `<textarea>` automatically, independent of
+  whether a call site remembered to flag it.
+- Multiline sizing now matches the source render instead of guessing: width
+  hugs the original wrapped column (no growth-room padding, which would
+  re-wrap text at different points than the real deck), and line-height is
+  copied from the field's own computed style rather than a constant.
+- Select-all-on-focus is now skipped for multiline fields (still used for
+  short ones) — clicking into a paragraph no longer risks wiping it on the
+  next keystroke.
+- Explicitly flagged the 16 known-paragraph fields (summary lead,
+  problem/solution body + footer text, subtitles across
+  product/probsol/roadmap/gallery/ask/closing, model stream/tier
+  descriptions, market note, team bios/advisors, roadmap item descriptions)
+  with `multiline: true` directly, so they get a textarea from the first
+  click even while their current generated content is still short.
+- Follow-up: removed the native `resize: vertical` drag-handle from
+  multiline fields — it showed up as a small, unexplained grip icon inside
+  the text (e.g. after a wrapped headline), which read as a UI glitch and
+  broke the "no visible chrome" editing feel from #28. `minHeight` is already
+  sized from the real measured block, so manual resize wasn't needed; native
+  textarea scrolling still handles typed text that grows past it.
+
+`File: frontend/src/components/workspace/deckTemplates/editing/FloatingTextEditor.tsx`
+(+ 16 call-site flags in `TemplatedDeck.tsx`)

@@ -98,6 +98,7 @@ async def download_presentation(
                 branding=branding,
                 logo_bytes=logo_bytes,
                 template_key=project.template_key,
+                template_data=(project.deck_content or {}).get("template_data"),
             )
             return StreamingResponse(
                 io.BytesIO(file_data),
@@ -121,7 +122,10 @@ async def download_presentation(
         raise HTTPException(status_code=404, detail="No presentation file found")
 
     storage = StorageClient()
-    filename = presentation.file_url.split("/storage/")[-1] if "/storage/" in presentation.file_url else f"{project_id}/presentation.pptx"
+    # Object key always follows this convention (see upload_pptx call sites) — deriving it
+    # directly is more robust than parsing file_url, whose shape differs between the local
+    # fallback ("/storage/{key}") and a real storage provider's URL structure.
+    filename = f"{project_id}/presentation.pptx"
     file_data = await storage.get_file(filename)
 
     if not file_data:

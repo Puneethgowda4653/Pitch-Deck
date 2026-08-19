@@ -30,6 +30,30 @@ SLIDE_KEYWORDS: dict[str, str] = {
 }
 
 
+def normalize_logo(raw: bytes) -> Optional[bytes]:
+    """Decode arbitrary fetched image bytes via Pillow and re-encode as PNG,
+    so the renderer always receives a format python-pptx can actually embed.
+    Notably, python-pptx CANNOT embed SVG — logos fetched as SVG (common for
+    modern startups) previously failed silently (bare `except: pass` at the
+    picture-add call site). Returns None for formats Pillow can't decode, with
+    a logged reason instead of a silent failure."""
+    try:
+        from PIL import Image, UnidentifiedImageError
+    except ImportError:
+        return raw  # Pillow not installed — pass through, let pptx try/fail as before
+    try:
+        with Image.open(io.BytesIO(raw)) as img:
+            buf = io.BytesIO()
+            img.convert("RGBA").save(buf, format="PNG")
+            return buf.getvalue()
+    except UnidentifiedImageError:
+        logger.warning("Logo bytes not a Pillow-decodable raster format (likely SVG) — skipping logo")
+        return None
+    except Exception as exc:
+        logger.warning(f"Logo normalize failed: {exc}")
+        return None
+
+
 async def fetch_image_bytes(url: str, timeout: int = 8) -> Optional[bytes]:
     """Download an image URL and return raw bytes. Returns None on failure."""
     try:

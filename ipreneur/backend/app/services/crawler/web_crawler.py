@@ -141,10 +141,10 @@ class WebCrawler:
     # ── Public entry points ────────────────────────────────────────────────────
 
     async def crawl(self, project_id: str) -> CrawlResult:
-        from app.db.session import get_db_context
+        from app.db.session import get_background_db_context
         from app.models.models import Project
 
-        async with get_db_context() as db:
+        async with get_background_db_context() as db:
             project = await db.get(Project, project_id)
             if not project:
                 raise ValueError(f"Project {project_id} not found")

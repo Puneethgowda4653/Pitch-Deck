@@ -1,6 +1,7 @@
 """
 Async database engine and session factory.
-Supports both PostgreSQL (asyncpg) and SQLite (aiosqlite) for local dev.
+Connects to Supabase-hosted PostgreSQL via asyncpg.
+Falls back to SQLite (aiosqlite) if asyncpg is not available.
 """
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -38,15 +39,16 @@ engine = create_async_engine(
     max_overflow=settings.database_max_overflow if "sqlite" not in _db_url else 0,
     echo=settings.app_debug,
     future=True,
-    **({} if "sqlite" not in _db_url else {"pool_pre_ping": True}),
+    pool_pre_ping=True,
+    # Supabase connection pooler uses PgBouncer in transaction mode,
+    # which does not support prepared statements.
+    **({} if "sqlite" in _db_url else {"connect_args": {"prepared_statement_cache_size": 0, "statement_cache_size": 0}}),
 )
 
 AsyncSessionFactory = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
-    autoflush=False,
-    autocommit=False,
 )
 
 
@@ -75,26 +77,48 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """Create all tables. Only used in dev/testing. Prod uses Alembic migrations."""
-    from sqlalchemy import text
-
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
-        # Lightweight dev migration: create_all won't ADD columns to existing
-        # tables. Add any missing project columns (SQLite dev only).
-        if "sqlite" in _db_url:
-            rows = await conn.exec_driver_sql("PRAGMA table_info('projects')")
-            cols = {r[1] for r in rows.fetchall()}
-            _dev_add_cols = {
-                "template_key": "VARCHAR(32)",
-                "assets": "TEXT",  # JSONType serializes to TEXT on SQLite
-            }
-            for col, ddl in _dev_add_cols.items():
-                if col not in cols:
-                    await conn.exec_driver_sql(f"ALTER TABLE projects ADD COLUMN {col} {ddl}")
 
 
 async def drop_db() -> None:
     """Drop all tables. Only for testing."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
+def _create_background_engine():
+    """Create a fresh async engine for use in background threads.
+
+    asyncpg engines are bound to the event loop on which they were created.
+    Background threads that spin up their own event loop therefore need their
+    own engine instance.
+    """
+    return create_async_engine(
+        _db_url,
+        pool_size=2,
+        max_overflow=2,
+        echo=False,
+        future=True,
+        pool_pre_ping=True,
+        **({} if "sqlite" in _db_url else {"connect_args": {"prepared_statement_cache_size": 0, "statement_cache_size": 0}}),
+    )
+
+
+@asynccontextmanager
+async def get_background_db_context() -> AsyncGenerator[AsyncSession, None]:
+    """Context manager for DB sessions in background threads (own event loop).
+
+    Creates a disposable engine so the session is not tied to the main loop.
+    """
+    bg_engine = _create_background_engine()
+    factory = async_sessionmaker(bind=bg_engine, class_=AsyncSession, expire_on_commit=False)
+    async with factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await bg_engine.dispose()

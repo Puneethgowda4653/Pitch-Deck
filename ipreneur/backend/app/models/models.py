@@ -1,4 +1,4 @@
-"""
+﻿"""
 SQLAlchemy ORM models for iPreneur.
 All models use UUID primary keys and soft-delete patterns.
 Compatible with both PostgreSQL and SQLite.
@@ -28,7 +28,7 @@ def generate_uuid() -> str:
     return str(uuid.uuid4())
 
 
-# ─── Custom JSON type that works with both PostgreSQL and SQLite ──────────────
+# ΓöÇΓöÇΓöÇ Custom JSON type that works with both PostgreSQL and SQLite ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 class JSONType(TypeDecorator):
     """Platform-independent JSON type. Uses JSONB on PostgreSQL, TEXT on SQLite."""
@@ -46,7 +46,7 @@ class JSONType(TypeDecorator):
         return value
 
 
-# ─── User ─────────────────────────────────────────────────────────────────────
+# ΓöÇΓöÇΓöÇ User ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 class User(Base):
     __tablename__ = "users"
@@ -87,7 +87,7 @@ class User(Base):
         return f"<User id={self.id} email={self.email}>"
 
 
-# ─── Project ──────────────────────────────────────────────────────────────────
+# ΓöÇΓöÇΓöÇ Project ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 class Project(Base):
     __tablename__ = "projects"
@@ -99,7 +99,7 @@ class Project(Base):
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    company_url: Mapped[str] = mapped_column(String(512), nullable=False)
+    company_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     status: Mapped[str] = mapped_column(
         String(20),
         default="draft",
@@ -145,7 +145,7 @@ class Project(Base):
         return f"<Project id={self.id} name={self.name} status={self.status}>"
 
 
-# ─── Presentation ─────────────────────────────────────────────────────────────
+# ΓöÇΓöÇΓöÇ Presentation ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 class Presentation(Base):
     __tablename__ = "presentations"
@@ -189,7 +189,7 @@ class Presentation(Base):
     project: Mapped["Project"] = relationship("Project", back_populates="presentations")
 
 
-# ─── Job ──────────────────────────────────────────────────────────────────────
+# ΓöÇΓöÇΓöÇ Job ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 class Job(Base):
     __tablename__ = "jobs"
@@ -223,7 +223,7 @@ class Job(Base):
     project: Mapped["Project"] = relationship("Project", back_populates="jobs")
 
 
-# ─── Subscription ─────────────────────────────────────────────────────────────
+# ΓöÇΓöÇΓöÇ Subscription ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 class Subscription(Base):
     __tablename__ = "subscriptions"

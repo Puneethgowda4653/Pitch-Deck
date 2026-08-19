@@ -125,7 +125,7 @@ export default function WorkspacePage() {
           <span style={ws.divider} />
           <div style={{ minWidth: 0 }}>
             <div style={ws.projName}>{project?.name || "Loading…"}</div>
-            <div style={ws.projUrl}>{project?.companyUrl ?? project?.company_url}</div>
+            <div style={ws.projUrl}>{project?.companyUrl ?? project?.company_url ?? "No website — idea stage"}</div>
           </div>
           {project && (
             <Badge tone={statusTone[project.status] ?? "neutral"} dot>

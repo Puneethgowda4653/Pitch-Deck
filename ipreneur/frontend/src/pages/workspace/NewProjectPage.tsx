@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { Globe, Sparkles, ArrowRight, ArrowLeft, Upload, X, Image as ImageIcon } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { Globe, Sparkles, ArrowRight, ArrowLeft, Upload, X, Image as ImageIcon, Plus } from "lucide-react";
+import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import toast from "react-hot-toast";
@@ -14,20 +14,26 @@ import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
 import { Card } from "@/components/ui/Card";
 
-const schema = z.object({
-  companyUrl: z
-    .string()
-    .min(1, "URL is required")
-    .url("Please enter a valid URL (include https://)"),
+const trimOrUndefined = (v: unknown) => (typeof v === "string" ? v.trim() || undefined : v);
+
+const founderSchema = z.object({
+  name: z.preprocess(trimOrUndefined, z.string().optional()),
+  role: z.preprocess(trimOrUndefined, z.string().optional()),
+  oneLiner: z.preprocess(trimOrUndefined, z.string().max(140).optional()),
+});
+
+const baseSchema = z.object({
+  hasWebsite: z.boolean().default(true),
+  companyUrl: z.string().optional(),
   name: z.string().min(1, "Project name is required").max(80),
-  companyName: z.preprocess(
-    (v) => (typeof v === "string" ? v.trim() || undefined : v),
-    z.string().max(80).optional()
-  ),
-  industry: z.preprocess(
-    (v) => (typeof v === "string" ? v.trim() || undefined : v),
-    z.string().max(80).optional()
-  ),
+  companyName: z.preprocess(trimOrUndefined, z.string().max(80).optional()),
+  industry: z.preprocess(trimOrUndefined, z.string().max(80).optional()),
+  problemStatement: z.preprocess(trimOrUndefined, z.string().max(600).optional()),
+  solutionDescription: z.preprocess(trimOrUndefined, z.string().max(600).optional()),
+  targetCustomer: z.preprocess(trimOrUndefined, z.string().max(120).optional()),
+  tractionNotes: z.preprocess(trimOrUndefined, z.string().max(400).optional()),
+  competitorNotes: z.preprocess(trimOrUndefined, z.string().max(200).optional()),
+  founders: z.array(founderSchema).default([]),
   businessModel: z.preprocess(
     (v) => (v === "" ? undefined : v),
     z.enum(["saas", "marketplace", "services", "ecommerce", "fintech", "hardware", "other"]).optional()
@@ -57,6 +63,26 @@ const schema = z.object({
     z.number().positive().optional()
   ),
   startImmediately: z.boolean().default(true),
+});
+
+const schema = baseSchema.superRefine((data, ctx) => {
+  if (data.hasWebsite) {
+    if (!data.companyUrl?.trim()) {
+      ctx.addIssue({ path: ["companyUrl"], code: z.ZodIssueCode.custom, message: "URL is required" });
+    } else if (!z.string().url().safeParse(data.companyUrl).success) {
+      ctx.addIssue({ path: ["companyUrl"], code: z.ZodIssueCode.custom, message: "Please enter a valid URL (include https://)" });
+    }
+  } else {
+    if (!data.companyName?.trim()) ctx.addIssue({ path: ["companyName"], code: z.ZodIssueCode.custom, message: "Company name is required" });
+    if (!data.industry?.trim()) ctx.addIssue({ path: ["industry"], code: z.ZodIssueCode.custom, message: "Industry is required" });
+    if (!data.problemStatement?.trim()) ctx.addIssue({ path: ["problemStatement"], code: z.ZodIssueCode.custom, message: "What problem are you solving?" });
+    if (!data.solutionDescription?.trim()) ctx.addIssue({ path: ["solutionDescription"], code: z.ZodIssueCode.custom, message: "What are you building?" });
+    if (!data.founders.length || !data.founders[0]?.name?.trim()) {
+      ctx.addIssue({ path: ["founders", 0, "name"], code: z.ZodIssueCode.custom, message: "Add at least one founder" });
+    } else if (!data.founders[0]?.role?.trim()) {
+      ctx.addIssue({ path: ["founders", 0, "role"], code: z.ZodIssueCode.custom, message: "Role is required" });
+    }
+  }
 });
 
 type FormData = z.infer<typeof schema>;
@@ -93,6 +119,7 @@ const ndS = {
   thumbWrap: { position: "relative", aspectRatio: "1", borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-default)" } as React.CSSProperties,
   thumb: { width: "100%", height: "100%", objectFit: "cover", display: "block" } as React.CSSProperties,
   thumbX: { position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: "50%", border: 0, background: "rgba(0,0,0,.6)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 } as React.CSSProperties,
+  founderRow: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8, alignItems: "start" } as React.CSSProperties,
 };
 
 export default function NewProjectPage() {
@@ -107,20 +134,32 @@ export default function NewProjectPage() {
     handleSubmit,
     setValue,
     watch,
+    control,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     mode: "onChange",
-    defaultValues: { companyUrl: "", name: "", startImmediately: true },
+    defaultValues: {
+      hasWebsite: true,
+      companyUrl: "",
+      name: "",
+      founders: [{ name: "", role: "", oneLiner: "" }],
+      startImmediately: true,
+    },
   });
 
-  const urlValue = watch("companyUrl") ?? "";
+  const { fields: founderFields, append: appendFounder, remove: removeFounder } = useFieldArray({
+    control,
+    name: "founders",
+  });
+
+  const hasWebsite = watch("hasWebsite");
 
   const { mutate: createProject, isPending } = useMutation({
     mutationFn: (data: FormData) =>
       projectsApi.create({
         name: data.name,
-        companyUrl: data.companyUrl,
+        companyUrl: data.hasWebsite ? data.companyUrl : undefined,
         startAnalysis: data.startImmediately,
         brandingData: {
           company_name: data.companyName,
@@ -132,6 +171,16 @@ export default function NewProjectPage() {
           total_customers: data.totalCustomers,
           monthly_active_users: data.monthlyActiveUsers,
           ask_amount_usd: data.askAmountUsd,
+          ...(!data.hasWebsite && {
+            problem_statement: data.problemStatement,
+            solution_description: data.solutionDescription,
+            target_customer: data.targetCustomer,
+            traction_notes: data.tractionNotes,
+            competitor_notes: data.competitorNotes,
+            founders: data.founders
+              .filter((f) => f.name?.trim())
+              .map((f) => ({ name: f.name || "", role: f.role || "", one_liner: f.oneLiner })),
+          }),
         },
       }),
     onSuccess: async (project) => {
@@ -167,34 +216,131 @@ export default function NewProjectPage() {
         <div style={ndS.head}>
           <div style={ndS.mark}><Sparkles size={26} /></div>
           <h1 style={ndS.h1}>Create your pitch deck</h1>
-          <p style={ndS.sub}>Drop in a company URL. Our AI does the rest.</p>
+          <p style={ndS.sub}>
+            {hasWebsite ? "Drop in a company URL. Our AI does the rest." : "Tell us about your idea. Our AI does the rest."}
+          </p>
         </div>
 
         <Card padding="none" style={{ overflow: "hidden" }}>
           <form onSubmit={handleSubmit(onSubmit)} style={ndS.form}>
-            {/* Company URL */}
-            <div>
-              <Input
-                label="Company website"
-                icon={<Globe size={16} />}
-                {...register("companyUrl")}
-                type="text"
-                placeholder="https://yourcompany.com"
-                error={errors.companyUrl?.message}
-              />
-              <div style={ndS.examples}>
-                {EXAMPLES.map((ex) => (
-                  <button
-                    key={ex}
-                    type="button"
-                    style={ndS.exBtn}
-                    onClick={() => setValue("companyUrl", "https://" + ex)}
-                  >
-                    {ex}
-                  </button>
-                ))}
+            {/* No-website toggle */}
+            <div style={ndS.toggleRow}>
+              <div>
+                <div style={ndS.toggleTitle}>I don't have a website yet</div>
+                <div style={ndS.toggleSub}>New/idea-stage company — tell us about it instead</div>
               </div>
+              <Switch checked={!hasWebsite} onChange={(v) => setValue("hasWebsite", !v, { shouldValidate: true })} />
             </div>
+
+            {hasWebsite ? (
+              /* Company URL */
+              <div>
+                <Input
+                  label="Company website"
+                  icon={<Globe size={16} />}
+                  {...register("companyUrl")}
+                  type="text"
+                  placeholder="https://yourcompany.com"
+                  error={errors.companyUrl?.message}
+                />
+                <div style={ndS.examples}>
+                  {EXAMPLES.map((ex) => (
+                    <button
+                      key={ex}
+                      type="button"
+                      style={ndS.exBtn}
+                      onClick={() => setValue("companyUrl", "https://" + ex)}
+                    >
+                      {ex}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              /* Manual company intake — no website to crawl */
+              <div style={ndS.advSection}>
+                <div style={ndS.sectionHead}>Tell us about your company</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={ndS.twoCol}>
+                    <Input label="Company name" {...register("companyName")} placeholder="e.g. Zomato" error={errors.companyName?.message} />
+                    <Input label="Industry" {...register("industry")} placeholder="e.g. Fintech, SaaS" error={errors.industry?.message} />
+                  </div>
+                  <Input
+                    label="What problem are you solving?"
+                    multiline
+                    rows={3}
+                    {...register("problemStatement")}
+                    placeholder="Who has this pain, and what does it cost them today?"
+                    error={errors.problemStatement?.message}
+                  />
+                  <Input
+                    label="What are you building?"
+                    multiline
+                    rows={3}
+                    {...register("solutionDescription")}
+                    placeholder="Your product/solution and what makes it different"
+                    error={errors.solutionDescription?.message}
+                  />
+                  <Input
+                    label="Target customer"
+                    hint="optional"
+                    {...register("targetCustomer")}
+                    placeholder="e.g. Mid-market logistics companies in India"
+                  />
+
+                  <div>
+                    <div style={ndS.uploadLabel}>Founders</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {founderFields.map((field, i) => (
+                        <div key={field.id} style={ndS.founderRow}>
+                          <Input
+                            {...register(`founders.${i}.name` as const)}
+                            placeholder="Full name"
+                            error={i === 0 ? errors.founders?.[0]?.name?.message : undefined}
+                          />
+                          <Input
+                            {...register(`founders.${i}.role` as const)}
+                            placeholder="Role, e.g. Co-founder & CEO"
+                            error={i === 0 ? errors.founders?.[0]?.role?.message : undefined}
+                          />
+                          <Input
+                            {...register(`founders.${i}.oneLiner` as const)}
+                            placeholder="Background (optional), e.g. Ex-Google PM"
+                          />
+                          {founderFields.length > 1 && (
+                            <button type="button" style={ndS.removeBtn} onClick={() => removeFounder(i)}>
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      style={{ ...ndS.exBtn, marginTop: 10, display: "inline-flex", alignItems: "center", gap: 4 }}
+                      onClick={() => appendFounder({ name: "", role: "", oneLiner: "" })}
+                    >
+                      <Plus size={13} /> Add founder
+                    </button>
+                  </div>
+
+                  <Input
+                    label="Early validation / traction"
+                    hint="optional — e.g. waitlist signups, LOIs, pilot users"
+                    multiline
+                    rows={2}
+                    {...register("tractionNotes")}
+                    placeholder="Leave blank if pre-launch — we won't invent traction"
+                  />
+                  <Input
+                    label="Known competitors"
+                    hint="optional, comma-separated"
+                    {...register("competitorNotes")}
+                    placeholder="e.g. Acme Inc, Beta Corp"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Project name */}
             <Input
@@ -249,10 +395,12 @@ export default function NewProjectPage() {
 
               {showAdvanced && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div style={ndS.twoCol}>
-                    <Input label="Company name" {...register("companyName")} placeholder="e.g. Zomato" />
-                    <Input label="Industry" hint="AI will detect" {...register("industry")} placeholder="e.g. Fintech, SaaS" />
-                  </div>
+                  {hasWebsite && (
+                    <div style={ndS.twoCol}>
+                      <Input label="Company name" {...register("companyName")} placeholder="e.g. Zomato" />
+                      <Input label="Industry" hint="AI will detect" {...register("industry")} placeholder="e.g. Fintech, SaaS" />
+                    </div>
+                  )}
                   <div style={ndS.twoCol}>
                     <Input label="ARR (USD)" {...register("arrUsd")} type="number" placeholder="e.g. 1200000" />
                     <Input label="MRR (USD)" {...register("mrrUsd")} type="number" placeholder="e.g. 100000" />

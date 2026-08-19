@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     database_pool_size: int = 10
     database_max_overflow: int = 20
 
+    # ── Supabase ─────────────────────────────────────────────────────────────
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+
     # ── Redis ────────────────────────────────────────────────────────────────
     redis_url: str = "redis://localhost:6379/0"
     redis_cache_ttl: int = 3600
@@ -53,7 +57,7 @@ class Settings(BaseSettings):
     gemini_api_key_2: str = ""
     gemini_model: str = ""
     gemini_model_research: str = "gemini-1.5-flash"
-    gemini_max_tokens: int = 8192
+    gemini_max_tokens: int = 16384
     gemini_thinking_budget: int = 0
 
     # ── Groq AI (automatic fallback when Gemini is unavailable) ──────────────

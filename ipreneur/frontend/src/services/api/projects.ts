@@ -1,9 +1,10 @@
 import { apiClient } from "@/services/api/client";
 import type { Project, JobProgress } from "@/types";
+import type { TemplateDeckData } from "@/components/workspace/deckTemplates/types";
 
 interface CreateProjectPayload {
   name: string;
-  companyUrl: string;
+  companyUrl?: string;
   startAnalysis?: boolean;
   brandingData?: {
     company_name?: string;
@@ -15,6 +16,12 @@ interface CreateProjectPayload {
     total_customers?: number;
     monthly_active_users?: number;
     ask_amount_usd?: number;
+    problem_statement?: string;
+    solution_description?: string;
+    target_customer?: string;
+    traction_notes?: string;
+    competitor_notes?: string;
+    founders?: { name: string; role: string; one_liner?: string }[];
   };
 }
 
@@ -50,18 +57,22 @@ export const projectsApi = {
   create: async (payload: CreateProjectPayload): Promise<Project> => {
     const { data } = await apiClient.post("/projects", {
       name: payload.name,
-      company_url: payload.companyUrl,
+      company_url: payload.companyUrl || null,
       start_analysis: payload.startAnalysis ?? false,
       branding_data: payload.brandingData ?? null,
     });
     return data;
   },
 
-  // Persist editable fields (e.g. chosen template). Backend expects snake_case.
-  update: async (id: string, payload: { name?: string; templateKey?: string }): Promise<Project> => {
+  // Persist editable fields (e.g. chosen template, edited deck text). Backend expects snake_case.
+  update: async (
+    id: string,
+    payload: { name?: string; templateKey?: string; templateData?: TemplateDeckData }
+  ): Promise<Project> => {
     const body: Record<string, unknown> = {};
     if (payload.name !== undefined) body.name = payload.name;
     if (payload.templateKey !== undefined) body.template_key = payload.templateKey;
+    if (payload.templateData !== undefined) body.template_data = payload.templateData;
     const { data } = await apiClient.put(`/projects/${id}`, body);
     return data;
   },
