@@ -17,8 +17,10 @@ import { toPng } from "html-to-image";
 import PptxGenJS from "pptxgenjs";
 
 import { Theme, ensureDeckFonts } from "./themes";
-import { TemplateDeckData, DECK_SLIDE_ORDER } from "./types";
+import { TemplateDeckData } from "./types";
+import { SlideSlot, slideOrder } from "./deckTypes";
 import { renderSlide } from "./TemplatedDeck";
+import { VIEW_CTX } from "./editing/editableText";
 
 const SLIDE_W = 1280;
 const SLIDE_H = 720;
@@ -51,7 +53,10 @@ function nextPaint(): Promise<void> {
 export async function exportTemplatedDeckToPptx(
   data: TemplateDeckData,
   theme: Theme,
-  fileName: string
+  fileName: string,
+  /** The deck's slide sequence. Defaults to the investor order, which is what
+   * every deck generated before multi-deck support is. */
+  order: SlideSlot[] = slideOrder()
 ): Promise<void> {
   ensureDeckFonts();
   await fontsReady();
@@ -67,7 +72,7 @@ export async function exportTemplatedDeckToPptx(
   const root = createRoot(host);
 
   try {
-    const count = DECK_SLIDE_ORDER.length;
+    const count = order.length;
     root.render(
       createElement(
         "div",
@@ -85,7 +90,7 @@ export async function exportTemplatedDeckToPptx(
                 background: theme.bg,
               },
             },
-            renderSlide(theme, data, i)
+            renderSlide(theme, data, i, VIEW_CTX, order)
           )
         )
       )

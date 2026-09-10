@@ -6,6 +6,8 @@ interface CreateProjectPayload {
   name: string;
   companyUrl?: string;
   startAnalysis?: boolean;
+  /** One of the registry keys from GET /deck-types. Defaults to "investor". */
+  deckType?: string;
   brandingData?: {
     company_name?: string;
     industry?: string;
@@ -22,6 +24,12 @@ interface CreateProjectPayload {
     traction_notes?: string;
     competitor_notes?: string;
     founders?: { name: string; role: string; one_liner?: string }[];
+    /** Presenter-led vs standalone — drives on-slide text density. */
+    deck_format?: string;
+    /* Deck-type-specific brief answers (target_buyer, partner_name, period, …)
+     * ride here alongside the shared fields; the backend reads them straight
+     * out of branding_data as prompt ground truth. */
+    [key: string]: unknown;
   };
 }
 
@@ -59,6 +67,7 @@ export const projectsApi = {
       name: payload.name,
       company_url: payload.companyUrl || null,
       start_analysis: payload.startAnalysis ?? false,
+      deck_type: payload.deckType ?? "investor",
       branding_data: payload.brandingData ?? null,
     });
     return data;

@@ -2,19 +2,21 @@ import React from "react";
 
 const CSS = `
 .ipr-select-wrap{ position:relative; display:flex; align-items:center; }
+/* Matches Input: pressed into the surface, not sitting on it. */
 .ipr-select{
-  width:100%; height:44px; padding:0 36px 0 14px; font-family:var(--font-body);
+  width:100%; height:48px; padding:0 40px 0 16px; font-family:var(--font-body);
   font-size:var(--text-sm); color:var(--text-strong);
-  background:var(--surface-card); border:1px solid var(--border-default);
+  background:var(--surface-sunken); border:1px solid var(--glass-edge);
   border-radius:var(--radius-md); outline:none; appearance:none; cursor:pointer;
+  box-shadow:var(--clay-inset);
   transition:border-color var(--dur-base) var(--ease-out),
              box-shadow var(--dur-base) var(--ease-out);
 }
 .ipr-select:hover{ border-color:var(--border-strong); }
-.ipr-select:focus{ border-color:var(--brand); box-shadow:var(--focus-ring); }
-.ipr-select:disabled{ background:var(--surface-sunken); color:var(--text-faint); cursor:not-allowed; }
+.ipr-select:focus{ border-color:var(--border-brand); box-shadow:var(--clay-inset), var(--focus-ring); }
+.ipr-select:disabled{ opacity:.5; cursor:not-allowed; }
 .ipr-select-arrow{
-  position:absolute; right:12px; pointer-events:none;
+  position:absolute; right:14px; pointer-events:none;
   color:var(--text-faint); display:inline-flex;
 }
 `;

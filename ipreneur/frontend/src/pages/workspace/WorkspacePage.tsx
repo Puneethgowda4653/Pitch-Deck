@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Play, Download, Edit3, RefreshCw, Loader2, AlertCircle, KeyRound, ExternalLink } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -115,7 +115,7 @@ export default function WorkspacePage() {
   const isError = project?.status === "error";
 
   return (
-    <div style={{ background: "var(--surface-page)", minHeight: "100vh" }}>
+    <div style={{ background: "transparent", minHeight: "100vh" }}>
       {/* Topbar */}
       <div style={ws.topbar}>
         <div style={ws.topLeft}>
@@ -222,6 +222,8 @@ export default function WorkspacePage() {
                 {(project.deckContent as any).templateData ? (
                   <TemplatedDeckSection
                     data={(project.deckContent as any).templateData as TemplateDeckData}
+                    deckType={(project.deckContent as any).deckType ?? project.deckType}
+                    slideOrder={(project.deckContent as any).slideOrder}
                     initialKey={(project as any).templateKey}
                     assets={(project as any).assets}
                     onPersist={(key) => saveTemplate(key)}

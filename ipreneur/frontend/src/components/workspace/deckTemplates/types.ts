@@ -1,12 +1,18 @@
 /**
- * Shared data contract for the templated pitch deck.
+ * Shared data contract for the templated deck.
  *
  * The backend generation pass emits a `template_data` object in exactly this
  * shape (stored on deck_content.template_data). The 10-theme renderer in
  * TemplatedDeck.tsx consumes it directly — no lossy adapter.
  *
- * Keep this in sync with the JSON schema in
- * backend/app/agents/master/master_agent.py (_build_generation_prompt).
+ * Every section is OPTIONAL: which ones a deck carries depends on its deck
+ * type (see deckTypes.ts). A sales deck has `proof` and `roi` but no `team`;
+ * an internal memo has `options` and `risks` but no `market`. Read sections
+ * through `sec()` rather than directly, so a slide renders with sane defaults
+ * instead of throwing when its section is absent.
+ *
+ * Keep in sync with backend/app/decks/sections.py, which owns the pydantic
+ * models these mirror. `backend/test_deck_registry.py` guards the backend half.
  */
 
 export interface Stat {
@@ -14,11 +20,136 @@ export interface Stat {
   l: string; // supporting label
 }
 
+export interface KpiTile {
+  k: string; // big number
+  l: string; // short label
+}
+
+export interface LeadItem {
+  k: string; // 1-3 word bold lead
+  t: string; // the rest
+}
+
 // User-uploaded assets, overlaid on the deck at render time (absolute URLs).
 export interface DeckAssets {
   logoUrl?: string;
   galleryImages?: { slot: string; url: string }[];
 }
+
+// ── Section shapes ───────────────────────────────────────────────────────────
+
+export interface SummaryData {
+  headline: string;
+  lead: string;
+  highlights: KpiTile[];
+}
+
+export interface ProbSolData {
+  headline: string;
+  sub: string;
+  problemTitle: string;
+  problemLead: string;
+  solutionTitle: string;
+  solutionLead: string;
+  problem: LeadItem[];
+  solution: LeadItem[];
+  problemFoot: string;
+  solutionFoot: string;
+}
+
+export interface ProductData {
+  headline: string;
+  sub: string;
+  steps: { n: string; t: string; d: string; tags: string[] }[];
+}
+
+export interface MarketData {
+  headline: string;
+  tam: Stat;
+  sam: Stat;
+  som: Stat;
+  note: string;
+}
+
+export interface ModelData {
+  headline: string;
+  flow: string[];
+  streams: { t: string; d: string; v: string; vl: string }[];
+  tiers: { t: string; p: string; s: string; d: string }[];
+}
+
+export interface TractionData {
+  headline: string;
+  sub: string;                        // chart axis label
+  series: { y: string; v: number }[]; // y = period label, v = numeric
+  kpis: KpiTile[];
+}
+
+export interface CompetitionData {
+  headline: string;
+  cols: string[];                       // [own column, then the alternatives]
+  rows: { f: string; v: boolean[] }[];  // v aligns with cols
+}
+
+export interface RoadmapData {
+  headline: string;
+  sub: string;
+  items: { q: string; t: string; d: string }[];
+}
+
+export interface GalleryData {
+  headline: string;
+  sub: string;
+  // Laid out in a 4-col × 2-row grid; span = double-width tile.
+  // ph = placeholder caption (rendered until a real image is supplied).
+  slots: { id: string; ph: string; span?: boolean }[];
+}
+
+export interface TeamData {
+  headline: string;
+  members: { i: string; n: string; r: string; b: string }[];
+  advisors: string;
+}
+
+export interface AskData {
+  headline: string;
+  sub: string;
+  use: { l: string; p: number }[]; // p = percent (should total ~100)
+}
+
+export interface ClosingData {
+  headline: string;
+  sub: string;
+  contact: string;
+  site: string;
+}
+
+export interface ProofData {
+  headline: string;
+  sub: string;
+  cases: { c: string; m: string; ml: string; d: string; q: string }[];
+  logos: string[];
+}
+
+export interface PersonaData {
+  headline: string;
+  sub: string;
+  who: string;
+  context: string;
+  jobs: LeadItem[];
+  pains: LeadItem[];
+  quote: string;
+}
+
+export interface VisionData {
+  headline: string;
+  sub: string;
+  statement: string;
+  horizon: string;
+  proofPoints: KpiTile[];
+}
+
+// ── The deck ─────────────────────────────────────────────────────────────────
 
 export interface TemplateDeckData {
   company: string;
@@ -35,94 +166,111 @@ export interface TemplateDeckData {
   // can always override via the picker.
   theme_suggestion?: string;
 
-  summary: {
-    headline: string;
-    lead: string;
-    highlights: { k: string; l: string }[]; // 4 KPI tiles
-  };
+  // Shared sections
+  summary?: SummaryData;
+  probsol?: ProbSolData;
+  product?: ProductData;
+  market?: MarketData;
+  model?: ModelData;
+  traction?: TractionData;
+  competition?: CompetitionData;
+  roadmap?: RoadmapData;
+  galleryS?: GalleryData;
+  team?: TeamData;
+  ask?: AskData;
+  closing?: ClosingData;
 
-  probsol: {
-    headline: string;
-    sub: string;
-    problemTitle: string;
-    problemLead: string;
-    solutionTitle: string;
-    solutionLead: string;
-    problem: { k: string; t: string }[];  // 3 items: k = bold lead, t = rest
-    solution: { k: string; t: string }[]; // 3 items
-    problemFoot: string;
-    solutionFoot: string;
-  };
+  // Sales
+  proof?: ProofData;
+  roi?: TractionData;
 
-  product: {
-    headline: string;
-    sub: string;
-    steps: { n: string; t: string; d: string; tags: string[] }[]; // 3 items: n = "01".."03", tags = chips
-  };
+  // Product / demo
+  persona?: PersonaData;
 
-  market: {
-    headline: string;
-    tam: Stat;
-    sam: Stat;
-    som: Stat;
-    note: string; // bottom-up methodology note
-  };
+  // Partnership
+  partnerRole?: ProbSolData;
+  partnershipModel?: ModelData;
+  gtm?: RoadmapData;
 
-  model: {
-    headline: string;
-    flow: string[]; // 3–4 nodes of the revenue flow
-    streams: { t: string; d: string; v: string; vl: string }[]; // 2 items; v = "~70%", vl = "of revenue"
-    tiers: { t: string; p: string; s: string; d: string }[];    // 3 pricing tiers; p = "$499", s = "/mo"
-  };
+  // Internal
+  recommendation?: SummaryData;
+  options?: CompetitionData;
+  risks?: ProbSolData;
 
-  traction: {
-    headline: string;
-    sub: string; // chart axis label, e.g. "ARR growth ($M)"
-    series: { y: string; v: number }[]; // 5–6 points; y = period label, v = numeric ($M)
-    kpis: { k: string; l: string }[];   // 4 KPI tiles
-  };
+  // Investor update
+  period?: SummaryData;
+  wins?: ProductData;
 
-  competition: {
-    headline: string;
-    cols: string[];               // [own company, comp1, comp2, comp3] — 4 columns
-    rows: { f: string; v: boolean[] }[]; // 5 feature rows; v aligns with cols
-  };
-
-  roadmap: {
-    headline: string;
-    sub: string;
-    items: { q: string; t: string; d: string }[]; // 4 milestones; q = "Q1 2026"
-  };
-
-  galleryS: {
-    headline: string;
-    sub: string;
-    // 5 image slots laid out in a 4-col × 2-row grid; span = double-width tile.
-    // ph = placeholder caption (rendered until a real image is supplied).
-    slots: { id: string; ph: string; span?: boolean }[];
-  };
-
-  team: {
-    headline: string;
-    members: { i: string; n: string; r: string; b: string }[]; // i = initials, n = name, r = role, b = bio
-    advisors: string;
-  };
-
-  ask: {
-    headline: string;
-    sub: string;
-    use: { l: string; p: number }[]; // use-of-funds; p = percent (should total ~100)
-  };
-
-  closing: {
-    headline: string;
-    sub: string;
-    contact: string; // email
-    site: string;    // website
-  };
+  // Vision
+  vision?: VisionData;
+  values?: ProductData;
+  pillars?: ProductData;
 }
 
+// ── Safe section access ──────────────────────────────────────────────────────
+
+/**
+ * Read a section by key, filled in from `fallback`.
+ *
+ * Sections are optional and a renderer is reused across several of them
+ * (`probsol` also draws `risks` and `partnerRole`), so slides address their
+ * data by key rather than by field. Merging over a fallback means a section
+ * that is missing — or present but missing a field the model made optional —
+ * still renders rather than throwing mid-deck.
+ */
+export function sec<T extends object>(
+  C: TemplateDeckData,
+  key: string,
+  fallback: T
+): T {
+  const raw = (C as unknown as Record<string, unknown>)[key];
+  if (!raw || typeof raw !== "object") return fallback;
+  return { ...fallback, ...(raw as Partial<T>) } as T;
+}
+
+// Per-shape defaults, so every renderer can assume its arrays and strings exist.
+export const EMPTY_SUMMARY: SummaryData = { headline: "", lead: "", highlights: [] };
+export const EMPTY_PROBSOL: ProbSolData = {
+  headline: "", sub: "", problemTitle: "", problemLead: "",
+  solutionTitle: "", solutionLead: "", problem: [], solution: [],
+  problemFoot: "", solutionFoot: "",
+};
+export const EMPTY_PRODUCT: ProductData = { headline: "", sub: "", steps: [] };
+export const EMPTY_MARKET: MarketData = {
+  headline: "", tam: { v: "", l: "" }, sam: { v: "", l: "" }, som: { v: "", l: "" }, note: "",
+};
+export const EMPTY_MODEL: ModelData = { headline: "", flow: [], streams: [], tiers: [] };
+export const EMPTY_TRACTION: TractionData = { headline: "", sub: "", series: [], kpis: [] };
+export const EMPTY_COMPETITION: CompetitionData = { headline: "", cols: [], rows: [] };
+export const EMPTY_ROADMAP: RoadmapData = { headline: "", sub: "", items: [] };
+export const EMPTY_GALLERY: GalleryData = {
+  headline: "Product gallery",
+  sub: "Add product screens, photos, or press to bring the story to life.",
+  slots: [
+    { id: "g1", ph: "Product screenshot", span: true }, { id: "g2", ph: "Mobile app" },
+    { id: "g3", ph: "Product in use" }, { id: "g4", ph: "Customer / press" },
+    { id: "g5", ph: "Reporting view", span: true },
+  ],
+};
+export const EMPTY_TEAM: TeamData = { headline: "", members: [], advisors: "" };
+export const EMPTY_ASK: AskData = { headline: "", sub: "", use: [] };
+export const EMPTY_CLOSING: ClosingData = { headline: "", sub: "", contact: "", site: "" };
+export const EMPTY_PROOF: ProofData = { headline: "", sub: "", cases: [], logos: [] };
+export const EMPTY_PERSONA: PersonaData = {
+  headline: "", sub: "", who: "", context: "", jobs: [], pains: [], quote: "",
+};
+export const EMPTY_VISION: VisionData = {
+  headline: "", sub: "", statement: "", horizon: "", proofPoints: [],
+};
+
+/**
+ * The investor deck's section order.
+ *
+ * Kept as the default for decks generated before `slide_order` was persisted —
+ * those are all investor decks, and this is the exact order they were built
+ * against. New code should resolve the order via `slideOrder()` in deckTypes.ts.
+ */
 export const DECK_SLIDE_ORDER = [
   "cover", "summary", "probsol", "product", "market", "model",
-  "traction", "competition", "roadmap", "gallery", "team", "ask", "closing",
+  "traction", "competition", "roadmap", "galleryS", "team", "ask", "closing",
 ] as const;

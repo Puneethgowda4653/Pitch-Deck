@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/Input";
 const authWrap: React.CSSProperties = {
   minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
   padding: 24, position: "relative", overflow: "hidden",
-  background: "var(--surface-page)",
+  background: "transparent",
 };
 const haloStyle: React.CSSProperties = {
   position: "absolute", inset: 0, background: "var(--grad-hero)", pointerEvents: "none",

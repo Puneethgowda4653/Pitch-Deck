@@ -25,6 +25,13 @@ export interface DeckSlide {
 
 export interface DeckContent {
   slides?: DeckSlide[];
+  /** Rich payload for the templated renderer (deck_content.template_data). */
+  templateData?: Record<string, unknown>;
+  /** Which deck type generated this. */
+  deckType?: string;
+  /** The section sequence this deck was actually generated against.
+   * Authoritative over the registry default — see deckTypes.ts slideOrder(). */
+  slideOrder?: string[];
 }
 
 export interface Project {
@@ -35,6 +42,11 @@ export interface Project {
   companyUrl?: string;
   company_url?: string;
   status: "draft" | "analyzing" | "researching" | "generating" | "ready" | "error";
+  deckType?: string;
+  deck_type?: string;
+  templateKey?: string | null;
+  template_key?: string | null;
+  assets?: Record<string, unknown> | null;
   brandingData?: BrandingData;
   branding_data?: Record<string, unknown>;
   researchData?: Record<string, unknown>;

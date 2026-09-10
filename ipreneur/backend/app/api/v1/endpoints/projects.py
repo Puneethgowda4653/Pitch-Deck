@@ -20,6 +20,7 @@ from loguru import logger
 
 from app.api.deps.auth import get_current_user
 from app.db.session import get_db, get_db_context, get_background_db_context
+from app.decks.registry import DEFAULT_DECK_FORMAT, DEFAULT_DECK_TYPE, resolve_sections
 from app.models.models import Job, Project, User, Presentation
 from app.schemas.project import (
     ProjectCreate,
@@ -63,6 +64,13 @@ async def _run_analysis_inline(project_id: str, job_id: str) -> None:
             _user_input: dict = (_proj.branding_data or {}) if _proj else {}
             _company_url: Optional[str] = _proj.company_url if _proj else None
             _saved_template_key: Optional[str] = _proj.template_key if _proj else None
+            _deck_type: str = (getattr(_proj, "deck_type", None) or DEFAULT_DECK_TYPE) if _proj else DEFAULT_DECK_TYPE
+
+        # Stage and presentation format are collected on the intake form and ride
+        # in branding_data with the rest of the founder's answers.
+        _stage = _user_input.get("funding_stage") or None
+        _deck_format = _user_input.get("deck_format") or DEFAULT_DECK_FORMAT
+        _sections = resolve_sections(_deck_type, stage=_stage)
 
         has_website = bool(_company_url)
 
@@ -105,8 +113,11 @@ async def _run_analysis_inline(project_id: str, job_id: str) -> None:
                 all_images=crawl_result.all_images or [],
                 pages_crawled=crawl_result.pages_crawled,
                 user_inputs=_user_input,
+                deck_type=_deck_type,
+                stage=_stage,
+                deck_format=_deck_format,
             )
-            logger.info(f"✓ Master agent generated {len(master_result.slides)} slides")
+            logger.info(f"✓ Master agent generated {len(master_result.slides)} slides | type={_deck_type}")
             
             await update_job(total_progress=75, message=f"Generated {len(master_result.slides)} slides")
         except Exception as master_error:
@@ -170,6 +181,7 @@ async def _run_analysis_inline(project_id: str, job_id: str) -> None:
             slide_backgrounds=slide_backgrounds,
             template_key=_template_key,
             template_data=master_result.template_data,
+            sections=master_result.slide_order or _sections,
         )
         await update_job(total_progress=95, message="Presentation rendered")
 
@@ -295,6 +307,7 @@ async def create_project(
             name=payload.name,
             company_url=str(payload.company_url) if payload.company_url else None,
             status="draft",
+            deck_type=payload.deck_type,
             branding_data=payload.branding_data,
         )
         db.add(project)

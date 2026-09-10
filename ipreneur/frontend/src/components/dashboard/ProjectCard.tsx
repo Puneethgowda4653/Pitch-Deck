@@ -29,16 +29,16 @@ const statusLabel: Record<string, string> = {
 };
 
 const s = {
-  inner: { padding: 18, display: "flex", flexDirection: "column" as const, gap: 14 },
+  inner: { padding: 18, display: "flex", flexDirection: "column" as const, gap: 14, height: "100%" },
   top: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, minWidth: 0 },
   nameWrap: { minWidth: 0, flex: 1 },
   name: { font: "700 15px var(--font-display)", color: "var(--text-strong)", whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" },
   urlRow: { display: "flex", alignItems: "center", gap: 5, marginTop: 5, minWidth: 0 },
   urlText: { font: "400 12px var(--font-body)", color: "var(--text-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, flex: 1 },
-  swatches: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" as const },
+  swatches: { display: "flex", alignItems: "center", gap: 7, minWidth: 0 },
   dot: (color: string): React.CSSProperties => ({ width: 18, height: 18, borderRadius: 99, background: color, border: "1.5px solid #fff", boxShadow: "var(--shadow-xs)", flexShrink: 0 }),
-  industry: { font: "500 11px var(--font-body)", color: "var(--text-muted)", background: "var(--surface-sunken)", padding: "3px 9px", borderRadius: 99 } as React.CSSProperties,
-  foot: { display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTop: "1px solid var(--border-subtle)" },
+  industry: { font: "500 11px var(--font-body)", color: "var(--text-muted)", background: "var(--surface-sunken)", padding: "3px 9px", borderRadius: 99, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 } as React.CSSProperties,
+  foot: { display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 12, marginTop: "auto", borderTop: "1px solid var(--border-subtle)" },
   time: { display: "flex", alignItems: "center", gap: 5, font: "400 12px var(--font-body)", color: "var(--text-faint)" },
 };
 
@@ -50,8 +50,8 @@ export function ProjectCard({ project }: Props) {
   const label = statusLabel[project.status] ?? project.status;
 
   return (
-    <Link to={`/projects/${project.id}`} style={{ display: "block", textDecoration: "none", minWidth: 0, overflow: "hidden" }}>
-      <Card padding="none" interactive style={{ overflow: "hidden", minWidth: 0 }}>
+    <Link to={`/projects/${project.id}`} style={{ display: "block", textDecoration: "none", minWidth: 0, overflow: "hidden", height: "100%" }}>
+      <Card padding="none" interactive style={{ overflow: "hidden", minWidth: 0, height: "100%", display: "flex", flexDirection: "column" }}>
         <div style={s.inner}>
           <div style={s.top}>
             <div style={s.nameWrap}>

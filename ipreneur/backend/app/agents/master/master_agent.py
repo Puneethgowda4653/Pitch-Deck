@@ -13,12 +13,19 @@ import asyncio
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Sequence
 
 from loguru import logger
 
 from app.core.config import settings
 from app.core.genai_client import GeminiClientWrapper, make_genai_client
+from app.decks.prompt import build_generation_sections
+from app.decks.registry import (
+    DEFAULT_DECK_FORMAT,
+    DEFAULT_DECK_TYPE,
+    get_deck_type,
+    resolve_sections,
+)
 
 
 @dataclass
@@ -70,11 +77,18 @@ class MasterDeckResult:
     deck_subtitle: str = ""
     research_summary: dict = field(default_factory=dict)
     template_data: dict = field(default_factory=dict)  # rich schema for the 10-theme renderer
+    deck_type: str = DEFAULT_DECK_TYPE
+    # The resolved section list this deck was generated against. Persisted with
+    # the deck so it keeps rendering in its original order even if the registry
+    # changes later — the deck describes itself rather than being re-derived.
+    slide_order: list[str] = field(default_factory=list)
 
     def to_deck_content_dict(self) -> dict:
         return {
             "deck_title": self.deck_title,
             "deck_subtitle": self.deck_subtitle,
+            "deck_type": self.deck_type,
+            "slide_order": self.slide_order,
             "template_data": self.template_data,
             "slides": [
                 {
@@ -168,13 +182,22 @@ class MasterDeckAgent:
         pricing_info: list[str] = None,
         all_images: list[str] = None,
         pages_crawled: int = 0,
+        deck_type: str = DEFAULT_DECK_TYPE,
+        stage: Optional[str] = None,
+        deck_format: str = DEFAULT_DECK_FORMAT,
     ) -> MasterDeckResult:
         company_name = user_inputs.get("company_name", "")
-        logger.info(f"🤖 MasterDeckAgent | url={company_url} | company={company_name or 'auto-detect'} | pages={pages_crawled}")
+        dt = get_deck_type(deck_type)
+        sections = resolve_sections(dt.key, stage=stage)
+        logger.info(
+            f"🤖 MasterDeckAgent | url={company_url} | company={company_name or 'auto-detect'} | "
+            f"type={dt.key} | slides={len(sections)} | research={dt.research} | pages={pages_crawled}"
+        )
 
-        # ── Pass 1: Deep research ────────────────────────────────────────────────
+        # ── Pass 1: Deep research (skipped entirely for 'none' deck types) ───────
         research_data = await self._research_pass(
-            company_url, website_content, team_info or [], pricing_info or [], user_inputs
+            company_url, website_content, team_info or [], pricing_info or [], user_inputs,
+            profile=dt.research,
         )
 
         # A founder who filled in the no-website manual intake form has, by definition,
@@ -204,7 +227,8 @@ class MasterDeckAgent:
         prompt = self._build_generation_prompt(
             company_url, website_content,
             team_info or [], pricing_info or [],
-            user_inputs, research_data
+            user_inputs, research_data,
+            deck_type=dt.key, sections=sections, stage=stage, deck_format=deck_format,
         )
 
         def _is_transient(e: Exception) -> bool:
@@ -274,24 +298,28 @@ class MasterDeckAgent:
             ]
 
             from app.ppt.engine.template_schema import validate_template_data
-            template_data = validate_template_data(data.get("template_data") or {})
+            template_data = validate_template_data(data.get("template_data") or {}, sections=sections)
             if template_data:
                 # Fill any missing identity fields the renderer relies on.
                 template_data.setdefault("company", branding.company_name)
                 template_data.setdefault("mark", (branding.company_name or "?")[:1].upper())
                 template_data.setdefault("tagline", branding.tagline)
-                template_data.setdefault("eyebrow", "Investor Presentation")
+                template_data.setdefault("eyebrow", dt.eyebrow)
                 template_data.setdefault("year", "2026")
 
             result = MasterDeckResult(
                 branding=branding,
                 slides=slides,
-                deck_title=data.get("deck_title", f"{branding.company_name} — Investor Deck"),
+                deck_title=data.get("deck_title", f"{branding.company_name} — {dt.label}"),
                 deck_subtitle=data.get("deck_subtitle", f"Confidential | {branding.industry}"),
                 research_summary={**research_data, **data.get("research_summary", {})},
                 template_data=template_data,
+                deck_type=dt.key,
+                slide_order=list(sections),
             )
-            logger.info(f"✅ MasterDeckAgent done | {len(slides)} slides | company={branding.company_name}")
+            logger.info(
+                f"✅ MasterDeckAgent done | {len(slides)} slides | type={dt.key} | company={branding.company_name}"
+            )
             return result
 
         except Exception as exc:
@@ -307,14 +335,28 @@ class MasterDeckAgent:
         team_info: list[str],
         pricing_info: list[str],
         user_inputs: dict,
+        profile: str = "full",
     ) -> dict:
         """
         Pass 1: gemini-2.5-flash + Google Search grounding + thinking.
         Searches the live internet for founders, funding, competitors, market data.
         Falls back to training knowledge if search grounding fails.
+
+        `profile` comes from the deck type:
+          full  — founders, funding, competitors, market (investor, partnership, vision)
+          light — competitors and market only (sales, product)
+          none  — no web research at all; the deck runs on founder-supplied input
+                  alone (internal, investor update), where web facts about the
+                  company are irrelevant and only add hallucination surface.
         """
+        if profile == "none":
+            logger.info("🔬 Research profile 'none' — no web research for this deck type")
+            return {}
+
         company_name = user_inputs.get("company_name", "")
-        prompt = self._build_research_prompt(company_url, website_content, team_info, pricing_info, user_inputs)
+        prompt = self._build_research_prompt(
+            company_url, website_content, team_info, pricing_info, user_inputs, profile=profile
+        )
 
         def _is_quota_error(e: Exception) -> bool:
             msg = str(e).lower()
@@ -353,7 +395,8 @@ class MasterDeckAgent:
             self._attach_sources(data, grounding)
 
             # ── E: targeted team search if no real founders were found ──────────
-            if not data.get("founders"):
+            # Only for 'full' — a light profile never renders a team slide.
+            if profile == "full" and not data.get("founders"):
                 logger.info("🔎 No founders found — running targeted leadership search")
                 team = await self._team_search(client, company_url, company_name, website_content)
                 if team.get("founders"):
@@ -472,6 +515,30 @@ Early validation / traction (founder-reported — use exactly, do not inflate or
 Founder-named competitors (supplement with your own industry knowledge as well):
 {u.get('competitor_notes') or 'None provided — derive competitors from the industry.'}"""
 
+    @staticmethod
+    def _brief_block(deck_type: str, u: dict) -> str:
+        """The deck type's own intake fields, as prompt ground truth.
+
+        These are the answers to the type-specific questions on the new-project
+        form (buyer, partner, initiative, reporting period, …). For deck types
+        with no web research they are the ONLY authoritative input, which is why
+        they are labelled as ground truth as emphatically as the financials.
+        """
+        dt = get_deck_type(deck_type)
+        lines = []
+        for f in dt.brief_fields:
+            val = u.get(f.name)
+            if val is None or (isinstance(val, str) and not val.strip()):
+                continue
+            lines.append(f"  {f.label}: {val}")
+        if not lines:
+            return ""
+        return (
+            "\nDECK BRIEF — answers the author gave for this specific deck\n"
+            "(ground truth; use exactly, and do not contradict or embellish):\n"
+            + "\n".join(lines) + "\n"
+        )
+
     def _build_research_prompt(
         self,
         company_url: str,
@@ -479,6 +546,7 @@ Founder-named competitors (supplement with your own industry knowledge as well):
         team_info: list[str],
         pricing_info: list[str],
         u: dict,
+        profile: str = "full",
     ) -> str:
         company_name = u.get("company_name", "")
         industry = u.get("industry", "")
@@ -486,33 +554,26 @@ Founder-named competitors (supplement with your own industry knowledge as well):
         website_line = company_url or "Not yet live — idea-stage company"
         content_block = website_content[:8000] if website_content.strip() else self._founder_provided_block(u)
 
-        return f"""You are a world-class company research analyst with live access to Google Search.
+        # A "light" profile is for decks that show competitors and market context
+        # but never founders, funding history, or company milestones (sales,
+        # product). Searching for those is spend with nowhere to land, and any
+        # facts it turns up become hallucination surface for slides that should
+        # be talking about the customer instead.
+        light = profile == "light"
 
-YOU MUST USE WEB SEARCH. Do not rely on memory. Run real searches about THIS specific company
-and base every fact on what you actually find. Suggested searches (adapt to the company):
-  • "{company_name or '<company>'} founders" / "...directors" / "...leadership team" / "...CEO"
+        people_search_lines = "" if light else f"""  • "{company_name or '<company>'} founders" / "...directors" / "...leadership team" / "...CEO"
   • "{company_name or '<company>'} about us" / "...management" / site:linkedin.com "{company_name or '<company>'}"
   • "{company_name or '<company>'} funding" / "...revenue" / "...headquarters"
   • the company's own /about, /team, /leadership, /company pages
 Real people have verifiable names on the company website or LinkedIn. FIND them — do not invent.
+"""
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-COMPANY TO RESEARCH
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Website: {website_line}
-Company Name: {company_name or "→ extract from website content below"}
-Industry: {industry or "→ extract from website content below"}
-
+        team_lead_block = "" if light else f"""
 Team members found on website (use as search leads — verify each by name):
 {team_block}
+"""
 
-Website content:
-{content_block}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RESEARCH TASKS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+        people_tasks = "" if light else """
 1. FOUNDERS / DIRECTORS / LEADERSHIP — search the web for the REAL people:
    - Full names + exact titles (founder, co-founder, CEO, MD, director, etc.)
    - Education and prior companies/roles IF you can find them
@@ -528,15 +589,75 @@ RESEARCH TASKS
 3. FUNDING (search):
    - Known rounds (stage, amount, date, investors), total raised, last valuation
    - If bootstrapped/private/unknown → say so honestly (do not invent figures)
+"""
 
-4. COMPETITORS — provide at least 3 (industry reasoning is OK here):
+        market_tasks = f"""
+{'1' if light else '4'}. COMPETITORS — provide at least 3 (industry reasoning is OK here):
    - Real, well-known players in this exact space; for each: name, funding/valuation, one specific weakness
    - Examples: Quick commerce → Blinkit, Zepto, Swiggy Instamart | HR SaaS → Workday, BambooHR, Darwinbox
      EdTech India → BYJU'S, Unacademy, Vedantu | Fintech payments → Razorpay, PayU, Cashfree
 
-5. MARKET DATA (search for real figures + sources):
+{'2' if light else '5'}. MARKET DATA (search for real figures + sources):
    - TAM / SAM / SOM with source names, CAGR with source+period, 3 current growth drivers
+"""
 
+        people_schema = "" if light else """  "founders": [
+    {
+      "name": "Full Name",
+      "title": "Co-founder & CEO",
+      "education": "IIT Bombay, B.Tech Computer Science, 2018",
+      "prior": "Ex-Google India PM, 3 years",
+      "credential": "Forbes 30U30 2022",
+      "source": "https://linkedin.com/in/... or company /about page where found",
+      "confidence": "HIGH|MEDIUM|LOW"
+    }
+  ],
+  "company_facts": {
+    "founded_year": "2021",
+    "headquarters": "Bengaluru, India",
+    "headcount": "5,000+",
+    "operations": "10 cities across India",
+    "milestones": ["Launched in Bengaluru 2021", "Raised Series B 2022", "Expanded to Mumbai 2023"]
+  },
+  "funding": {
+    "total": "$1.4B",
+    "rounds": [
+      {"stage": "Seed", "amount": "$1M", "date": "Jan 2021", "investors": ["Sequoia India"]},
+      {"stage": "Series A", "amount": "$60M", "date": "Aug 2021", "investors": ["Tiger Global", "Y Combinator"]}
+    ],
+    "valuation": "$5B",
+    "status": "funded|bootstrapped|unknown"
+  },
+"""
+
+        scope_line = (
+            "Research the COMPETITIVE and MARKET context only — this deck never shows founders,\n"
+            "funding history, or company milestones, so do not spend searches on them."
+            if light else
+            "Run real searches about THIS specific company and base every fact on what you actually find."
+        )
+
+        return f"""You are a world-class company research analyst with live access to Google Search.
+
+YOU MUST USE WEB SEARCH. Do not rely on memory.
+{scope_line}
+Suggested searches (adapt to the company):
+{people_search_lines}  • "{company_name or '<company>'} competitors" / "{industry or '<industry>'} market size report"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COMPANY TO RESEARCH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Website: {website_line}
+Company Name: {company_name or "→ extract from website content below"}
+Industry: {industry or "→ extract from website content below"}
+{team_lead_block}
+Website content:
+{content_block}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RESEARCH TASKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{people_tasks}{market_tasks}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -550,34 +671,7 @@ Return ONLY valid JSON:
 {{
   "confidence": "HIGH|MEDIUM|LOW",
   "sources": ["https://...the urls/domains you actually used..."],
-  "founders": [
-    {{
-      "name": "Full Name",
-      "title": "Co-founder & CEO",
-      "education": "IIT Bombay, B.Tech Computer Science, 2018",
-      "prior": "Ex-Google India PM, 3 years",
-      "credential": "Forbes 30U30 2022",
-      "source": "https://linkedin.com/in/... or company /about page where found",
-      "confidence": "HIGH|MEDIUM|LOW"
-    }}
-  ],
-  "company_facts": {{
-    "founded_year": "2021",
-    "headquarters": "Bengaluru, India",
-    "headcount": "5,000+",
-    "operations": "10 cities across India",
-    "milestones": ["Launched in Bengaluru 2021", "Raised Series B 2022", "Expanded to Mumbai 2023"]
-  }},
-  "funding": {{
-    "total": "$1.4B",
-    "rounds": [
-      {{"stage": "Seed", "amount": "$1M", "date": "Jan 2021", "investors": ["Sequoia India"]}},
-      {{"stage": "Series A", "amount": "$60M", "date": "Aug 2021", "investors": ["Tiger Global", "Y Combinator"]}}
-    ],
-    "valuation": "$5B",
-    "status": "funded|bootstrapped|unknown"
-  }},
-  "competitors": [
+{people_schema}  "competitors": [
     {{
       "name": "Blinkit",
       "funding": "$1B+",
@@ -608,7 +702,17 @@ Return ONLY valid JSON:
         pricing_info: list[str],
         u: dict,
         research_data: dict,
+        deck_type: str = DEFAULT_DECK_TYPE,
+        sections: Optional[Sequence[str]] = None,
+        stage: Optional[str] = None,
+        deck_format: str = DEFAULT_DECK_FORMAT,
     ) -> str:
+        # The slide plan, per-section rules and both JSON skeletons are built
+        # from the deck-type registry rather than written out here, so a deck's
+        # shape is declared in exactly one place (app/decks/registry.py).
+        sections = tuple(sections or resolve_sections(deck_type, stage=stage))
+        B = build_generation_sections(deck_type, sections, stage=stage, deck_format=deck_format)
+
         # Format user-provided financials
         financials = []
         if u.get("arr_usd"):
@@ -630,6 +734,7 @@ Return ONLY valid JSON:
         company_name = u.get("company_name", "")
         industry = u.get("industry", "")
         pricing_block = "\n".join(f"  • {p}" for p in pricing_info[:5]) if pricing_info else "  • No pricing info found on website"
+        brief_block = self._brief_block(deck_type, u)
 
         # Serialize verified research for injection (cap size to stay within TPM).
         # "sources" is a list of long grounding-redirect URLs kept for audit purposes —
@@ -641,7 +746,6 @@ Return ONLY valid JSON:
         research_json_full = json.dumps(research_for_prompt, indent=2) if research_for_prompt else "{}"
         research_json = research_json_full[:6000]
         has_research = bool(research_data.get("founders") or research_data.get("competitors") or research_data.get("market"))
-        has_real_team = bool(research_data.get("founders"))
         website_line = company_url or "Not yet live — idea-stage company"
         has_website_content = bool(website_content.strip())
         content_header = (
@@ -649,13 +753,22 @@ Return ONLY valid JSON:
             else "FOUNDER-PROVIDED COMPANY DESCRIPTION (primary source — no live website yet; this is an idea-stage / pre-launch company)"
         )
         content_block = website_content[:8000] if has_website_content else self._founder_provided_block(u)
+        research_header = (
+            "(HIGH CONFIDENCE — use this directly)" if has_research
+            else "(empty — no web research for this deck type; use the company description below only)"
+        )
 
         return f"""You are the world's best pitch deck writer and slide designer.
 A research agent has already done the deep company and market research. Your ONLY job is to
-format the provided data into a compelling 12-slide investor pitch deck JSON.
+format the provided data into a compelling {B['slide_count']}-slide deck of the type described below.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VERIFIED RESEARCH DATA {"(HIGH CONFIDENCE — use this directly)" if has_research else "(empty — company unknown, use the company description below only)"}
+WHAT THIS DECK IS FOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{B['type_header']}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERIFIED RESEARCH DATA {research_header}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {research_json}
 
@@ -668,7 +781,7 @@ Industry: {industry or "→ extract from website content"}
 
 Founder-provided financials (ground truth — use exactly):
 {financials_block}
-
+{brief_block}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {content_header}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -702,76 +815,12 @@ AVOID: Colors with brightness <40 or >220 (too dark/light). AVOID near-identical
 If the company has obvious brand colors visible in their name/logo, use those instead.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-INSTRUCTIONS
+SLIDE PLAN — produce EXACTLY these {B['slide_count']} slides, in this order
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Generate 12 slides using the McKinsey Pyramid structure:
-  Slide 1:  Cover             [full_bleed]
-  Slide 2:  Executive Summary [big_number]
-  Slide 3:  Market Opportunity [big_number]  — CAGR, key drivers, why now
-  Slide 4:  Problem & Solution [two_column]
-  Slide 5:  Product           [cards]
-  Slide 6:  Business Model    [cards]
-  Slide 7:  Traction          [big_number]
-  Slide 8:  Competitive Landscape [cards]   — USE research_data.competitors EXACTLY
-  Slide 9:  Team              [cards]        — USE research_data.founders EXACTLY
-  Slide 10: Financials        [market_sizing] — TAM/SAM/SOM pie chart (USE research_data.tam_sam_som)
-  Slide 11: The Ask           [cards]
-  Slide 12: Closing           [full_bleed]
+{B['slide_plan']}
 
 SLIDE-SPECIFIC RULES:
-  Slide 4 (Problem & Solution) — two_column:
-    columns[0]: heading="The Problem", highlight="<pain stat>", points=3-4 quantified bullets
-    columns[1]: heading="Our Solution", highlight="<differentiator>", points=3-4 capability bullets
-
-  Slide 8 (Competitive Landscape) — MANDATORY: always produce real competitor cards
-    PRIMARY: use research_data.competitors if available
-    FALLBACK (if research_data.competitors is empty or missing):
-      → Read the website content to determine the company's industry + product category
-      → Identify the 3 most well-known companies competing in that exact space
-      → Every industry has known players — derive them. NEVER write "Not publicly disclosed" here.
-      Examples: B2B SaaS → Salesforce, HubSpot, Zoho | Quick commerce → Blinkit, Swiggy Instamart, Zepto
-    card title = real competitor name  |  card metric = their funding/valuation if known
-    card body = one genuine weakness compared to this company (e.g. "No dark-store network outside metros")
-
-  Slide 9 (Team) — use ONLY research_data.founders (real, web-verified people):
-    card title = "Full Name — Role"  |  card body = education + prior companies
-    card metric = notable credential (e.g. "Forbes 30U30")
-    ⛔ NEVER invent names, titles, or bios. Use a person ONLY if present in research_data.founders.
-    Entries with source="founder-provided" are founder self-reported ground truth — use them
-    exactly like web-verified ones, do NOT treat them as fabrication.
-    If research_data.founders is empty → 1 honest placeholder:
-      title="Leadership", body="Team details available on request" (do NOT fabricate people)
-
-  Slide 10 (Financials — layout: market_sizing):
-    This slide has TWO sections:
-
-    SECTION A — Market Sizing (data_points, EXACTLY 4):
-      Source values from research_data.tam_sam_som (keys: tam, sam, som — each has "value" and "description").
-      Also use research_data.market_size and research_data.market_growth for context.
-      MUST be industry+domain+geography specific — not generic.
-      data_points[0]: {{"label":"Total Addressable Market (TAM)","value":"$47B","sublabel":"Global quick commerce 2024 · Source: RedSeer"}}
-      data_points[1]: {{"label":"Serviceable Addressable Market (SAM)","value":"$12B","sublabel":"India urban grocery delivery segment"}}
-      data_points[2]: {{"label":"Serviceable Obtainable Market (SOM)","value":"$1.2B","sublabel":"~10% SAM capture · Target by 2027"}}
-      data_points[3]: {{"label":"Market CAGR","value":"40%","sublabel":"2024–2028 · Source: RedSeer"}}
-      CRITICAL: "value" field MUST always be a specific number like "$47B", "$12B", "$1.2B", "40%" — NEVER empty, never null.
-      If research_data.tam_sam_som is empty, use your own knowledge to estimate realistic figures for this industry.
-
-    SECTION B — Company Financials (cards, up to 3):
-      Use the FOUNDER-PROVIDED FINANCIALS exactly. Show current metrics and what they project to.
-      card[0]: {{"title":"Current ARR","metric":"$1.2M","body":"Annual recurring revenue as of today"}}
-      card[1]: {{"title":"MoM Growth","metric":"15%","body":"Month-over-month revenue growth rate"}}
-      card[2]: {{"title":"Active Customers","metric":"500+","body":"Paying customers using the platform"}}
-      → Only include cards where the founder actually provided the data. Skip cards with no data.
-      → If no financials were provided at all, omit cards entirely.
-
-    SECTION C — 3-Year Revenue Projections (bullet_points, exactly 3):
-      Calculate projections based on founder's current MRR/ARR + growth rate.
-      Formula: if MRR=$X and MoM growth=G%, then Year N MRR = X × (1+G%)^(12×N)
-      bullet_points[0]: "**FY2026:** $X ARR · N customers · Key milestone for this year"
-      bullet_points[1]: "**FY2027:** $X ARR · N customers · Geographic expansion"
-      bullet_points[2]: "**FY2028:** $X ARR · N customers · Path to next funding round"
-      → Calculate X and N from founder's MRR × growth rate compounded annually
-      → If no financials provided, project based on industry benchmarks for stage
+{B['section_rules']}
 
 SPECIFICITY RULE — applies to every bullet, card, headline, and lead-in in
 BOTH "slides" and "template_data":
@@ -797,21 +846,18 @@ AFTER (specific, sourced):
   "India's quick-commerce GMV grew 3.2x from 2022-2024 (RedSeer) as 10-minute
   delivery shifted from novelty to default expectation in metro grocery."
 
-This applies with extra weight to the Product, Business Model, and Market
-Opportunity slides — their instructions above are the thinnest on
-company-specific grounding, so they're the easiest to accidentally fill with
-industry boilerplate. Re-read this rule before writing those three.
+Apply this with extra weight to any slide whose instructions above are thin on
+company-specific grounding — those are the easiest to fill with industry
+boilerplate by accident. Re-read this rule before writing them.
 
 GENERAL RULES:
   - Every bullet must have a bold lead-in: "**Speed:** 10x faster than..."
   - data_points values must be punchy: "$47B", "40% CAGR"
-  - Traction: use founder-provided financials exactly
+  - Use founder-provided figures exactly — never round, inflate, or extrapolate them
   - NEVER write "Not publicly disclosed", "Evolving Landscape", "Available upon request" or any empty filler
-  - If research_data is empty for competitors → derive from the industry in the website content (always possible)
-  - If research_data is empty for market → estimate from the industry (every industry has published reports)
   - Every slide must contain real, specific, useful content — no placeholders, no vague filler text
-  - SPECIFICITY: every claim must be traceable to a fact in the research/website data above — no
-    interchangeable industry-generic sentences (see SPECIFICITY RULE above).
+  - ⛔ NEVER invent people's names, titles, bios, customers, logos, or quotes. An honest
+    gap beats a fabricated fact. Competitors and market size MAY be reasoned from the industry.
   - Numbers over adjectives: prefer "$47B market growing 40% CAGR" over "a large and growing market";
     prefer "200ms response time" over "lightning fast".
 
@@ -820,24 +866,14 @@ ALSO REQUIRED: "template_data" (sibling of "slides")
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Re-express the SAME deck — same researched facts — into the richer "template_data"
 object shown below. This drives a premium visual template renderer. Rules:
-  - Use the SAME founders, competitors, TAM/SAM/SOM and founder financials as the slides.
-  - competition.cols[0] = this company; rows[].v are booleans (true = has the feature),
-    one boolean per column. This company (index 0) should win most rows.
-  - traction.series[].v are NUMBERS in $M (no "$"/"M"), ascending; y = period label.
-  - ask.use[].p are percentages that total 100.
-  - roadmap.items = 4 real future milestones with quarter labels.
-  - galleryS.slots = exactly 5 image placeholders (ph = short caption of what image goes there,
-    relevant to THIS company's product/industry). Set "span": true on slots 1 and 5 only.
-  - summary.highlights = exactly 4 KPI tiles (k = big number, l = short label).
-  - probsol: problem[] and solution[] each = exactly 3 items; k = a 1-3 word bold lead, t = the rest.
-    problemFoot/solutionFoot = one punchy line each. Keep this company winning in the solution column.
-  - product.steps[].n = "01","02","03"; each step has 2-3 short "tags" (feature chips). model.flow = 3–4 short nodes.
+  - It must contain one key per slide in the plan above (except the cover, which uses
+    the top-level company/mark/tagline/eyebrow/year/round fields).
+  - Use the SAME facts, figures and people as the "slides" array — they are two
+    renderings of one deck, not two different decks.
+  - "eyebrow" must be "{B['eyebrow']}".
   - Pick theme_suggestion from the allowed keys based on the industry/mood.
-  - team.members: include ONLY real people from research_data.founders. ⛔ NEVER invent names/titles/bios.
-    Entries with source="founder-provided" are self-reported ground truth, not fabrication — use them directly.
-    If research_data.founders is empty → members:[{{"i":"","n":"Leadership","r":"Team","b":"Details available on request"}}].
-  - Fill every OTHER field with real, specific content. Honest gaps beat fabricated facts —
-    especially for people. Competitors/market may be reasoned from the industry.
+  - Fill every field with real, specific content. Honest gaps beat fabricated facts —
+    especially for people and customers.
 
 Return ONLY valid JSON:
 {{
@@ -851,72 +887,8 @@ Return ONLY valid JSON:
     "target_audience": "...",
     "business_model": "..."
   }},
-  "deck_title": "Company — Investor Pitch",
+  "deck_title": "Company — {B['label']}",
   "deck_subtitle": "Confidential | Industry",
-  "slides": [
-    {{
-      "slide_type": "cover",
-      "layout": "full_bleed",
-      "title": "...", "subtitle": "...", "body": "...",
-      "bullet_points": [], "data_points": [], "cards": [], "columns": [],
-      "speaker_notes": "..."
-    }},
-    {{
-      "slide_type": "problem_solution",
-      "layout": "two_column",
-      "title": "Problem & Solution", "subtitle": "...", "body": "",
-      "bullet_points": [], "data_points": [], "cards": [],
-      "columns": [
-        {{"heading": "The Problem", "highlight": "<stat>", "points": ["**Pain 1:** ...", "**Pain 2:** ...", "**Pain 3:** ..."]}},
-        {{"heading": "Our Solution", "highlight": "<differentiator>", "points": ["**Cap 1:** ...", "**Cap 2:** ...", "**Cap 3:** ..."]}}
-      ],
-      "speaker_notes": "..."
-    }},
-    {{
-      "slide_type": "financials",
-      "layout": "market_sizing",
-      "title": "Market Sizing & Financial Projections",
-      "subtitle": "<industry> opportunity · <company> trajectory",
-      "body": "",
-      "columns": [],
-      "data_points": [
-        {{"label": "Total Addressable Market (TAM)", "value": "$47B", "sublabel": "Global quick commerce 2024 · RedSeer"}},
-        {{"label": "Serviceable Addressable Market (SAM)", "value": "$12B", "sublabel": "India urban grocery delivery"}},
-        {{"label": "Serviceable Obtainable Market (SOM)", "value": "$1.2B", "sublabel": "~10% SAM capture by 2027"}},
-        {{"label": "Market CAGR", "value": "40%", "sublabel": "2024–2028 · Source: RedSeer"}}
-      ],
-      "cards": [
-        {{"title": "Current ARR",      "metric": "$1.2M",  "body": "Annual recurring revenue"}},
-        {{"title": "MoM Growth",       "metric": "15%",    "body": "Month-over-month growth"}},
-        {{"title": "Active Customers", "metric": "500+",   "body": "Paying customers"}}
-      ],
-      "bullet_points": [
-        "**FY2026:** $4.2M ARR · 1,500 customers · Expand to 5 new cities",
-        "**FY2027:** $15M ARR · 5,000 customers · Series B raise",
-        "**FY2028:** $48M ARR · 15,000 customers · 40% gross margin"
-      ],
-      "speaker_notes": "Market sized using RedSeer 2024 report. Revenue projections based on 15% MoM growth from current $100K MRR."
-    }}
-  ],
-  "template_data": {{
-    "company": "Company name",
-    "mark": "1-2 letter monogram",
-    "tagline": "one-line value proposition",
-    "eyebrow": "Investor Presentation",
-    "year": "2026",
-    "round": "Series A · Raising $XM",
-    "theme_suggestion": "one of: meridian, onyx, abyss, nocturne, forest, verdant, indigo, editorial, terra, slate",
-    "summary": {{"headline": "one-sentence what the company is and why it wins", "lead": "2-sentence elaboration of the opportunity and traction", "highlights": [{{"k": "$2.4M", "l": "ARR"}}, {{"k": "500+", "l": "Customers"}}, {{"k": "40%", "l": "Market CAGR"}}, {{"k": "$48B", "l": "TAM"}}]}},
-    "probsol": {{"headline": "...", "sub": "one-line framing", "problemTitle": "The Problem", "problemLead": "the core pain in one bold line", "solutionTitle": "Our Solution", "solutionLead": "the differentiator in one bold line", "problem": [{{"k": "Bold lead", "t": "rest of the pain point"}}, {{"k": "...", "t": "..."}}, {{"k": "...", "t": "..."}}], "solution": [{{"k": "Bold lead", "t": "rest of the capability"}}, {{"k": "...", "t": "..."}}, {{"k": "...", "t": "..."}}], "problemFoot": "the cost of inaction (one line)", "solutionFoot": "the payoff (one line)"}},
-    "product": {{"headline": "...", "sub": "...", "steps": [{{"n": "01", "t": "Connect", "d": "...", "tags": ["Tag A", "Tag B"]}}, {{"n": "02", "t": "Track", "d": "...", "tags": ["Tag A", "Tag B"]}}, {{"n": "03", "t": "Act", "d": "...", "tags": ["Tag A", "Tag B"]}}]}},
-    "market": {{"headline": "...", "tam": {{"v": "$48B", "l": "..."}}, "sam": {{"v": "$9.2B", "l": "..."}}, "som": {{"v": "$640M", "l": "..."}}, "note": "bottom-up methodology"}},
-    "model": {{"headline": "...", "flow": ["Customer", "Platform", "Subscription + payments", "Net revenue"], "streams": [{{"t": "...", "d": "...", "v": "~70%", "vl": "of revenue"}}, {{"t": "...", "d": "...", "v": "~30%", "vl": "of revenue"}}], "tiers": [{{"t": "Starter", "p": "$499", "s": "/mo", "d": "..."}}, {{"t": "Growth", "p": "$1,500", "s": "/mo", "d": "..."}}, {{"t": "Enterprise", "p": "Custom", "s": "", "d": "..."}}]}},
-    "traction": {{"headline": "...", "sub": "ARR growth ($M)", "series": [{{"y": "Q1", "v": 2}}, {{"y": "Q2", "v": 5}}, {{"y": "Q3", "v": 9}}, {{"y": "Q4", "v": 15}}], "kpis": [{{"k": "$2.4M", "l": "ARR"}}, {{"k": "15%", "l": "MoM growth"}}, {{"k": "500+", "l": "Customers"}}, {{"k": "120%", "l": "Net retention"}}]}},
-    "competition": {{"headline": "...", "cols": ["This company", "Competitor 1", "Competitor 2", "Competitor 3"], "rows": [{{"f": "Feature A", "v": [true, false, true, false]}}, {{"f": "Feature B", "v": [true, true, false, false]}}, {{"f": "Feature C", "v": [true, false, false, false]}}, {{"f": "Feature D", "v": [true, true, true, false]}}, {{"f": "Feature E", "v": [true, false, false, true]}}]}},
-    "roadmap": {{"headline": "...", "sub": "...", "items": [{{"q": "Q1 2026", "t": "...", "d": "..."}}, {{"q": "Q2 2026", "t": "...", "d": "..."}}, {{"q": "Q3 2026", "t": "...", "d": "..."}}, {{"q": "Q4 2026", "t": "...", "d": "..."}}]}},
-    "galleryS": {{"headline": "...", "sub": "one line inviting product screens / photos", "slots": [{{"id": "g1", "ph": "Dashboard screenshot", "span": true}}, {{"id": "g2", "ph": "Mobile app"}}, {{"id": "g3", "ph": "Product in use"}}, {{"id": "g4", "ph": "Customer / press"}}, {{"id": "g5", "ph": "Reporting view", "span": true}}]}},
-    "team": {{"headline": "...", "members": [{{"i": "BA", "n": "Full Name", "r": "CEO & Co-Founder", "b": "education + prior companies"}}], "advisors": "Backed by ..."}},
-    "ask": {{"headline": "Raising $XM Series A", "sub": "...", "use": [{{"l": "Engineering & product", "p": 45}}, {{"l": "Go-to-market", "p": 30}}, {{"l": "Operations", "p": 15}}, {{"l": "G&A", "p": 10}}]}},
-    "closing": {{"headline": "Let's build the future together", "sub": "...", "contact": "founders@company.com", "site": "company.com"}}
-  }}
+  "slides": {B['slides_skeleton']},
+  "template_data": {B['template_skeleton']}
 }}"""

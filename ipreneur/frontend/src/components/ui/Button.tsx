@@ -2,42 +2,62 @@ import React from "react";
 
 const CSS = `
 .ipr-btn{
-  --_h:40px; --_px:18px; --_fs:var(--text-sm);
+  --_h:42px; --_px:20px; --_fs:var(--text-sm);
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
-  height:var(--_h); padding:0 var(--_px); font-family:var(--font-body);
-  font-size:var(--_fs); font-weight:var(--weight-semibold);
+  height:var(--_h); padding:0 var(--_px); font-family:var(--font-display);
+  font-size:var(--_fs); font-weight:var(--weight-bold);
   letter-spacing:-0.005em; line-height:1; white-space:nowrap;
   border-radius:var(--radius-md); border:1px solid transparent;
   cursor:pointer; user-select:none; text-decoration:none;
-  transition:transform var(--dur-fast) var(--ease-out),
+  transition:transform var(--dur-base) var(--ease-clay),
              box-shadow var(--dur-base) var(--ease-out),
              background var(--dur-base) var(--ease-out),
              color var(--dur-base) var(--ease-out),
              border-color var(--dur-base) var(--ease-out);
 }
-.ipr-btn:focus-visible{ outline:none; box-shadow:var(--focus-ring); }
-.ipr-btn:active{ transform:translateY(1px); }
-.ipr-btn[disabled]{ opacity:.5; cursor:not-allowed; transform:none; pointer-events:none; }
+.ipr-btn:focus-visible{ outline:none; box-shadow:var(--clay-raise), var(--focus-ring); }
+.ipr-btn[disabled]{ opacity:.45; cursor:not-allowed; transform:none; pointer-events:none; }
 
-.ipr-btn--sm{ --_h:32px; --_px:13px; --_fs:var(--text-xs); border-radius:var(--radius-sm); }
-.ipr-btn--lg{ --_h:48px; --_px:24px; --_fs:var(--text-base); border-radius:var(--radius-lg); }
+.ipr-btn--sm{ --_h:34px; --_px:14px; --_fs:var(--text-xs); border-radius:var(--radius-sm); }
+.ipr-btn--lg{ --_h:52px; --_px:28px; --_fs:var(--text-base); border-radius:var(--radius-lg); }
 .ipr-btn--block{ width:100%; }
 
-.ipr-btn--primary{ background:var(--grad-brand); color:var(--text-on-brand); box-shadow:var(--glow-brand); }
-.ipr-btn--primary:hover:not([disabled]){ box-shadow:0 10px 30px rgba(123,44,191,.40); filter:saturate(1.05); }
+/* CLAY - the primary action is the most physical thing on the page. */
+.ipr-btn--primary{
+  background:var(--clay-500); color:var(--text-on-brand);
+  box-shadow:var(--clay-raise);
+}
+.ipr-btn--primary:hover:not([disabled]){
+  background:var(--clay-400); transform:translateY(-1px);
+  box-shadow:var(--clay-raise), var(--glow-brand);
+}
+.ipr-btn--primary:active:not([disabled]){ transform:translateY(1px); box-shadow:var(--clay-press); }
 
-.ipr-btn--solid{ background:var(--brand); color:var(--text-on-brand); }
-.ipr-btn--solid:hover:not([disabled]){ background:var(--brand-hover); }
+.ipr-btn--solid{ background:var(--clay-600); color:#FFF6F2; box-shadow:var(--clay-raise-sm); }
+.ipr-btn--solid:hover:not([disabled]){ background:var(--clay-500); }
+.ipr-btn--solid:active:not([disabled]){ transform:translateY(1px); box-shadow:var(--clay-press); }
 
-.ipr-btn--secondary{ background:var(--surface-card); color:var(--text-body);
-  border-color:var(--border-default); box-shadow:var(--shadow-xs); }
-.ipr-btn--secondary:hover:not([disabled]){ border-color:var(--border-strong); color:var(--text-strong); background:var(--surface-hover); }
+/* GLASS - secondary contains rather than shouts. */
+.ipr-btn--secondary{
+  background:var(--glass-2); color:var(--text-strong);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  border-color:var(--glass-edge); box-shadow:var(--glass-rim);
+}
+.ipr-btn--secondary:hover:not([disabled]){
+  background:var(--glass-3); border-color:var(--glass-edge-hi);
+}
+.ipr-btn--secondary:active:not([disabled]){ transform:translateY(1px); }
 
-.ipr-btn--ghost{ background:transparent; color:var(--text-body); }
-.ipr-btn--ghost:hover:not([disabled]){ background:var(--surface-brand); color:var(--text-brand); }
+/* FLAT - ghost informs, so it gets no surface at all until hovered. */
+.ipr-btn--ghost{ background:transparent; color:var(--text-muted); }
+.ipr-btn--ghost:hover:not([disabled]){ background:var(--surface-hover); color:var(--text-strong); }
 
-.ipr-btn--danger{ background:var(--danger-surface); color:var(--danger); border-color:rgba(220,38,38,.22); }
-.ipr-btn--danger:hover:not([disabled]){ background:#fbdada; }
+.ipr-btn--danger{
+  background:var(--danger-surface); color:var(--danger);
+  border-color:var(--danger-border);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+}
+.ipr-btn--danger:hover:not([disabled]){ background:rgba(255,118,108,.22); }
 
 .ipr-btn__spin{ width:15px; height:15px; border-radius:50%;
   border:2px solid currentColor; border-top-color:transparent;

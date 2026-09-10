@@ -2,19 +2,30 @@ import React from "react";
 
 const CSS = `
 .ipr-card{
-  background:var(--surface-card); border:1px solid var(--border-subtle);
-  border-radius:var(--radius-lg); box-shadow:var(--shadow-sm);
-  transition:transform var(--dur-base) var(--ease-out),
+  background:var(--glass-2);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-edge);
+  border-radius:var(--radius-xl);
+  box-shadow:var(--glass-rim), var(--shadow-md);
+  transition:transform var(--dur-base) var(--ease-clay),
              box-shadow var(--dur-base) var(--ease-out),
-             border-color var(--dur-base) var(--ease-out);
+             border-color var(--dur-base) var(--ease-out),
+             background var(--dur-base) var(--ease-out);
 }
 .ipr-card--pad{ padding:var(--space-6); }
 .ipr-card--pad-sm{ padding:var(--space-4); }
 .ipr-card--interactive{ cursor:pointer; }
-.ipr-card--interactive:hover{ transform:translateY(-2px); box-shadow:var(--shadow-lg); border-color:var(--border-brand); }
+.ipr-card--interactive:hover{
+  transform:translateY(-3px);
+  background:var(--glass-3);
+  border-color:var(--glass-edge-hi);
+  box-shadow:var(--glass-rim), var(--shadow-lg);
+}
+/* A wash of brand light BEHIND the glass, not a gradient laid on top. */
 .ipr-card--gradient{ position:relative; overflow:hidden; }
 .ipr-card--gradient::before{ content:""; position:absolute; inset:0;
-  background:var(--grad-brand-soft); opacity:.7; pointer-events:none; }
+  background:radial-gradient(120% 100% at 12% 0%, rgba(255,122,89,.22) 0%, transparent 66%);
+  pointer-events:none; }
 .ipr-card--gradient > *{ position:relative; }
 `;
 

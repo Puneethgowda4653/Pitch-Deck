@@ -7,6 +7,8 @@ from typing import Optional
 
 from pydantic import BaseModel, field_validator
 
+from app.decks.registry import DEFAULT_DECK_FORMAT, DEFAULT_DECK_TYPE, get_deck_type
+
 
 class FundingStage(str, Enum):
     idea = "idea"
@@ -32,6 +34,13 @@ class BusinessModelType(str, Enum):
 class CompanyIntake(BaseModel):
     # ── Required ────────────────────────────────────────────────────────────
     website_url: str
+
+    # ── Deck shape ───────────────────────────────────────────────────────────
+    deck_type: str = DEFAULT_DECK_TYPE
+    deck_format: str = DEFAULT_DECK_FORMAT
+    # Answers to the deck type's own intake questions, keyed by BriefField.name
+    # (target_buyer, partner_name, initiative, period, …).
+    brief: dict[str, str] = {}
 
     # ── Business basics ──────────────────────────────────────────────────────
     company_name: Optional[str] = None
@@ -112,8 +121,26 @@ class CompanyIntake(BaseModel):
             round_label = self.round_type or "unspecified round"
             lines.append(f"  Raising: ${self.ask_amount_usd:,.0f} ({round_label})")
 
-        if not lines:
+        # The deck type's own questions — for types with no web research these
+        # are the only authoritative input the prompt gets.
+        brief_lines: list[str] = []
+        if self.brief:
+            labels = {f.name: f.label for f in get_deck_type(self.deck_type).brief_fields}
+            for name, value in self.brief.items():
+                text = str(value or "").strip()
+                if text:
+                    brief_lines.append(f"  {labels.get(name, name.replace('_', ' ').title())}: {text}")
+
+        if not lines and not brief_lines:
             return ""
 
-        header = "FOUNDER-PROVIDED METRICS (treat as ground truth — override inferred data):"
-        return header + "\n" + "\n".join(lines)
+        out: list[str] = []
+        if lines:
+            out.append("FOUNDER-PROVIDED METRICS (treat as ground truth — override inferred data):")
+            out.extend(lines)
+        if brief_lines:
+            if out:
+                out.append("")
+            out.append("DECK BRIEF (answers for this specific deck — ground truth):")
+            out.extend(brief_lines)
+        return "\n".join(out)

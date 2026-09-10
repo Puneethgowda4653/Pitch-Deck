@@ -26,6 +26,20 @@ const subStyle: React.CSSProperties = { marginTop: 6, font: "400 14px var(--font
 const statsGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 26 };
 const toolbar: React.CSSProperties = { marginBottom: 18 };
 const cardGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16 };
+const newTile: React.CSSProperties = {
+  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+  gap: 10, minHeight: 168, padding: 18, textDecoration: "none",
+  border: "1.5px dashed var(--border-default)", borderRadius: "var(--radius-xl)",
+  background: "transparent", color: "var(--text-muted)",
+  transition: "border-color var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out)",
+};
+const newTileIcon: React.CSSProperties = {
+  width: 38, height: 38, borderRadius: "var(--radius-md)", display: "flex",
+  alignItems: "center", justifyContent: "center",
+  background: "var(--surface-sunken)", color: "var(--text-muted)",
+};
+const newTileTitle: React.CSSProperties = { font: "700 14px var(--font-display)", color: "var(--text-strong)" };
+const newTileSub: React.CSSProperties = { font: "400 12px var(--font-body)", color: "var(--text-faint)", textAlign: "center" };
 const skeletonGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16 };
 
 export default function DashboardPage() {
@@ -117,6 +131,22 @@ export default function DashboardPage() {
           {filtered.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
+          <Link
+            to="/projects/new"
+            style={newTile}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "var(--brand)";
+              e.currentTarget.style.background = "var(--surface-sunken)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-default)";
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <span style={newTileIcon}><Plus size={18} /></span>
+            <span style={newTileTitle}>New deck</span>
+            <span style={newTileSub}>Start from a URL or tell us about your idea</span>
+          </Link>
         </div>
       )}
     </div>

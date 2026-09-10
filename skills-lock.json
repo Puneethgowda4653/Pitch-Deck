@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "motion": {
+      "source": "motiondivision/ai-kit",
+      "sourceType": "github",
+      "skillPath": "plugins/motion/skills/motion/SKILL.md",
+      "computedHash": "1a47caa7bd3700a00f9939d85ea790f9e35cf51000c2e1da11521589f589fb0b"
+    }
+  }
+}

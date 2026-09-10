@@ -1,25 +1,27 @@
 import React from "react";
 
 const CSS = `
-.ipr-prog{ display:flex; flex-direction:column; gap:8px; width:100%; }
+.ipr-prog{ display:flex; flex-direction:column; gap:9px; width:100%; }
 .ipr-prog__top{ display:flex; align-items:center; justify-content:space-between;
   font-family:var(--font-body); font-size:var(--text-xs); color:var(--text-muted); }
 .ipr-prog__pct{ font-family:var(--font-mono); font-weight:var(--weight-medium); color:var(--text-brand); }
-.ipr-prog__track{ height:8px; border-radius:var(--radius-pill);
-  background:var(--surface-sunken); overflow:hidden; }
-.ipr-prog__track--sm{ height:5px; }
-.ipr-prog__track--lg{ height:11px; }
+/* Pressed-in channel with a clay fill riding in it. */
+.ipr-prog__track{ height:10px; border-radius:var(--radius-pill);
+  background:var(--surface-sunken); border:1px solid var(--glass-edge);
+  box-shadow:var(--clay-inset); overflow:hidden; }
+.ipr-prog__track--sm{ height:6px; }
+.ipr-prog__track--lg{ height:13px; }
 .ipr-prog__fill{ height:100%; border-radius:var(--radius-pill);
-  background:var(--grad-brand);
+  background:var(--clay-500);
+  box-shadow:inset 0 1.5px 0 rgba(255,255,255,.42), 0 0 14px rgba(255,122,89,.5);
   transition:width var(--dur-slow) var(--ease-out); }
 .ipr-prog__fill--striped{
-  background:var(--grad-brand);
-  background-image:linear-gradient(45deg,rgba(255,255,255,.18) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.18) 50%,rgba(255,255,255,.18) 75%,transparent 75%),
-    linear-gradient(135deg,var(--indigo-600),var(--violet-600));
-  background-size:18px 18px, 100% 100%;
+  background-image:linear-gradient(45deg,rgba(255,255,255,.20) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.20) 50%,rgba(255,255,255,.20) 75%,transparent 75%),
+    linear-gradient(var(--clay-500), var(--clay-500));
+  background-size:20px 20px, 100% 100%;
   animation:ipr-prog-stripe 1s linear infinite;
 }
-@keyframes ipr-prog-stripe{ to{ background-position:18px 0, 0 0; } }
+@keyframes ipr-prog-stripe{ to{ background-position:20px 0, 0 0; } }
 `;
 
 function useInjectStyle(id: string, css: string) {

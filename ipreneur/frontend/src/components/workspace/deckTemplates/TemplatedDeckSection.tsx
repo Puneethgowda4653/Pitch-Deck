@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { THEMES, getTheme, ensureDeckFonts, DEFAULT_THEME_KEY } from "./themes";
 import { TemplateDeckData } from "./types";
+import { deckTypeLabel, slideOrder } from "./deckTypes";
 import { TemplatedDeck, renderSlide } from "./TemplatedDeck";
 import { exportTemplatedDeckToPptx } from "./exportDeck";
 import type { EditPath } from "./editing/editableText";
@@ -24,6 +25,12 @@ interface RawAssets {
 
 interface Props {
   data: TemplateDeckData;
+  /** Which kind of deck this is (project.deckType). */
+  deckType?: string | null;
+  /** The deck's own persisted section order (deck_content.slide_order).
+   * Authoritative when present — it reflects the stage overrides actually
+   * applied at generation time. */
+  slideOrder?: readonly string[] | null;
   initialKey?: string | null;
   assets?: RawAssets | null;
   onPersist?: (key: string) => void;
@@ -40,8 +47,10 @@ interface Props {
   onEdit?: (path: EditPath, value: string | number) => void;
 }
 
-export function TemplatedDeckSection({ data: rawData, initialKey, assets, onPersist, fileName, registerExport, editable, onEdit }: Props) {
+export function TemplatedDeckSection({ data: rawData, deckType, slideOrder: storedOrder, initialKey, assets, onPersist, fileName, registerExport, editable, onEdit }: Props) {
   useEffect(() => { ensureDeckFonts(); }, []);
+
+  const order = useMemo(() => slideOrder(deckType, storedOrder), [deckType, storedOrder]);
 
   // Normalize backend assets (camel/snake) → absolute URLs, inject into deck data.
   const data = useMemo(() => {
@@ -71,9 +80,9 @@ export function TemplatedDeckSection({ data: rawData, initialKey, assets, onPers
   useEffect(() => {
     if (!registerExport) return;
     registerExport(() =>
-      exportTemplatedDeckToPptx(data, theme, fileName || "pitch-deck")
+      exportTemplatedDeckToPptx(data, theme, fileName || "pitch-deck", order)
     );
-  }, [registerExport, data, theme, fileName]);
+  }, [registerExport, data, theme, fileName, order]);
 
   const select = (key: string) => {
     if (key === activeKey) return;
@@ -93,7 +102,7 @@ export function TemplatedDeckSection({ data: rawData, initialKey, assets, onPers
             Template
           </h3>
           <span style={{ font: "400 12px var(--font-body)", color: "var(--text-muted)" }}>
-            {theme.name} · {theme.mood}
+            {deckTypeLabel(deckType)} · {order.length} slides · {theme.name}
           </span>
         </div>
         <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>
@@ -118,7 +127,7 @@ export function TemplatedDeckSection({ data: rawData, initialKey, assets, onPers
               >
                 <div style={{ width: THUMB_W, height: 720 * scale, overflow: "hidden", position: "relative" }}>
                   <div style={{ width: 1280, height: 720, transform: `scale(${scale})`, transformOrigin: "top left" }}>
-                    {renderSlide(t, data, 0)}
+                    {renderSlide(t, data, 0, undefined, order)}
                   </div>
                 </div>
                 <div style={{ padding: "5px 8px", background: "var(--surface-page)", textAlign: "left" }}>
@@ -131,7 +140,7 @@ export function TemplatedDeckSection({ data: rawData, initialKey, assets, onPers
       </div>
 
       {/* ── Live deck in the selected template ────────────────────── */}
-      <TemplatedDeck data={data} theme={theme} editable={editable} onEdit={onEdit} />
+      <TemplatedDeck data={data} theme={theme} order={order} editable={editable} onEdit={onEdit} />
     </div>
   );
 }

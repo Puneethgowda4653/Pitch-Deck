@@ -1,5 +1,5 @@
 import { Check, Loader2, AlertCircle, Sparkles } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 import type { JobProgress } from "@/types";
 import { JOB_STEP_ORDER, JOB_STEP_LABELS } from "@/constants";

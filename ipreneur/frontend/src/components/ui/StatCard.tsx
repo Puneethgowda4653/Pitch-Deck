@@ -2,21 +2,29 @@ import React from "react";
 
 const CSS = `
 .ipr-stat{
-  display:flex; align-items:center; gap:14px;
-  background:var(--surface-card); border:1px solid var(--border-subtle);
-  border-radius:var(--radius-lg); padding:16px 18px; box-shadow:var(--shadow-xs);
+  display:flex; align-items:center; gap:15px;
+  background:var(--glass-2);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-edge);
+  border-radius:var(--radius-xl); padding:18px 20px;
+  box-shadow:var(--glass-rim), var(--shadow-sm);
 }
 .ipr-stat__icon{
-  width:42px; height:42px; border-radius:var(--radius-md); flex-shrink:0;
+  width:44px; height:44px; border-radius:var(--radius-md); flex-shrink:0;
   display:inline-flex; align-items:center; justify-content:center;
-  background:var(--violet-100); color:var(--violet-600);
+  background:var(--clay-50); color:var(--clay-700);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.95), 0 1px 2px rgba(122,78,62,.10);
 }
-.ipr-stat__icon--grad{ background:var(--grad-brand); color:#fff; box-shadow:var(--glow-brand); }
+/* The one stat worth acting on gets the clay treatment. */
+.ipr-stat__icon--grad{
+  background:var(--clay-500); color:var(--text-on-brand);
+  box-shadow:var(--clay-raise-sm);
+}
 .ipr-stat__body{ min-width:0; }
-.ipr-stat__value{ font-family:var(--font-display); font-weight:var(--weight-bold);
-  font-size:var(--text-xl); color:var(--text-strong); line-height:1.05; letter-spacing:-0.02em; }
+.ipr-stat__value{ font-family:var(--font-display); font-weight:var(--weight-extra);
+  font-size:var(--text-xl); color:var(--text-strong); line-height:1.05; letter-spacing:-0.03em; }
 .ipr-stat__label{ font-family:var(--font-body); font-size:var(--text-xs);
-  color:var(--text-muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  color:var(--text-faint); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ipr-stat__delta{ font-family:var(--font-mono); font-size:var(--text-xs); font-weight:var(--weight-medium); }
 .ipr-stat__delta--up{ color:var(--green-600); }
 .ipr-stat__delta--down{ color:var(--red-600); }

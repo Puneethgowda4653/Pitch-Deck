@@ -1,31 +1,34 @@
 import React from "react";
 
 const CSS = `
-.ipr-field{ display:flex; flex-direction:column; gap:7px; }
-.ipr-field__label{ font-family:var(--font-body); font-size:var(--text-sm);
-  font-weight:var(--weight-semibold); color:var(--text-strong); }
+.ipr-field{ display:flex; flex-direction:column; gap:8px; }
+.ipr-field__label{ font-family:var(--font-display); font-size:var(--text-sm);
+  font-weight:var(--weight-semibold); color:var(--text-strong); letter-spacing:-0.01em; }
 .ipr-field__hint{ font-size:var(--text-xs); color:var(--text-faint); }
 .ipr-field__err{ font-size:var(--text-xs); color:var(--danger); font-weight:var(--weight-medium); }
 
 .ipr-input-wrap{ position:relative; display:flex; align-items:center; }
-.ipr-input-wrap__icon{ position:absolute; left:13px; display:inline-flex;
+.ipr-input-wrap__icon{ position:absolute; left:15px; display:inline-flex;
   color:var(--text-faint); pointer-events:none; }
+/* Fields are pressed INTO the surface — the inverse of a clay button. */
 .ipr-input{
-  width:100%; height:44px; padding:0 14px; font-family:var(--font-body);
+  width:100%; height:48px; padding:0 16px; font-family:var(--font-body);
   font-size:var(--text-sm); color:var(--text-strong);
-  background:var(--surface-card); border:1px solid var(--border-default);
+  background:var(--surface-sunken); border:1px solid var(--glass-edge);
   border-radius:var(--radius-md); outline:none;
+  box-shadow:var(--clay-inset);
   transition:border-color var(--dur-base) var(--ease-out),
-             box-shadow var(--dur-base) var(--ease-out);
+             box-shadow var(--dur-base) var(--ease-out),
+             background var(--dur-base) var(--ease-out);
 }
 .ipr-input::placeholder{ color:var(--text-faint); }
 .ipr-input:hover{ border-color:var(--border-strong); }
-.ipr-input:focus{ border-color:var(--brand); box-shadow:var(--focus-ring); }
-.ipr-input--icon{ padding-left:40px; }
+.ipr-input:focus{ border-color:var(--border-brand); box-shadow:var(--clay-inset), var(--focus-ring); }
+.ipr-input--icon{ padding-left:44px; }
 .ipr-input--err{ border-color:var(--danger); }
-.ipr-input--err:focus{ box-shadow:0 0 0 3px rgba(220,38,38,.18); }
-.ipr-input:disabled{ background:var(--surface-sunken); color:var(--text-faint); cursor:not-allowed; }
-textarea.ipr-input{ height:auto; padding:11px 14px; resize:vertical; line-height:1.5; }
+.ipr-input--err:focus{ box-shadow:var(--clay-inset), 0 0 0 3px rgba(255,118,108,.24); }
+.ipr-input:disabled{ opacity:.5; cursor:not-allowed; }
+textarea.ipr-input{ height:auto; padding:13px 16px; resize:vertical; line-height:1.55; }
 `;
 
 function useInjectStyle(id: string, css: string) {

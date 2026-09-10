@@ -587,3 +587,56 @@ horizontally-scrolled fragment of the text instead of the full wrapped block.
 
 `File: frontend/src/components/workspace/deckTemplates/editing/FloatingTextEditor.tsx`
 (+ 16 call-site flags in `TemplatedDeck.tsx`)
+
+---
+
+## Session: 2026-09-08
+
+**Environment note:** no code changes this session — infra/connectivity
+triage only. Decision made to stay on **Supabase Postgres permanently**; the
+SQLite fallback in `session.py` is not a supported dev path going forward.
+
+---
+
+### 30. Removed live credentials committed to `.env.example`
+
+**Problem:** `backend/.env.example` carried a full `#___original` block with
+**real** secrets (Supabase DB password, anon key, S3 access/secret keys),
+committed in `e346ba6`.
+
+**Fix:** Deleted the block; committed as `261359c` and pushed to
+`origin/main`. **Not remediated:** the secrets remain in git history
+(`e346ba6` and earlier) and on GitHub — they should be rotated (Supabase DB
+password, S3 keys, anon key) and history scrubbed (`git filter-repo` / BFG).
+
+---
+
+### 31. Diagnosed Supabase connection failures on `uvicorn` startup
+
+Backend refused to start — `init_db()` → asyncpg connect failing. Two
+distinct causes, in sequence:
+
+**a) Project auto-paused.** Error: `asyncpg.exceptions.InternalServerError:
+(ENOTFOUND) tenant/user postgres.lrorjoorubequalcufhb not found`. The
+Supavisor pooler returns this when the project is inactive — free-tier
+Supabase projects pause after ~1 week idle. Project `lrorjoorubequalcufhb`
+("Pitch Deck", region `ap-northeast-1`) showed `status: INACTIVE`. Resolved
+by restoring it from the dashboard.
+
+**b) Local DNS resolution failure.** After restore, error changed to
+`socket.gaierror: [Errno 11001] getaddrinfo failed` resolving
+`aws-0-ap-northeast-1.pooler.supabase.com`. Verified from outside the machine
+that the host resolves (`35.79.125.133 / 52.68.3.1 / 54.64.190.72`, behind an
+AWS ELB) and TCP 5432 is open — so this is the Windows box's DNS resolver,
+not Supabase or the app. Fix: point the network adapter's DNS at
+`1.1.1.1` / `8.8.8.8` + `ipconfig /flushdns` (some ISPs fail to resolve the
+`*.pooler.supabase.com` CNAME on their default resolver); a
+`hosts`-file pin to one ELB IP works as a stopgap but goes stale if the IP
+rotates.
+
+**Temporary detour (reverted):** `.env` `DATABASE_URL` was briefly switched
+to `sqlite+aiosqlite:///./ipreneur.db` to unblock local work, then restored
+to the Supabase pooler URL per the "stay on Supabase" decision. While on
+SQLite, a local-only `abhi@gmail.com` user row was inserted into
+`ipreneur.db` (bcrypt hash supplied directly) — it exists only in that local
+file and has no effect on Supabase.

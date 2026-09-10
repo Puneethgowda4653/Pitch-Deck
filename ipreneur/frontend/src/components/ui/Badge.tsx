@@ -2,19 +2,21 @@ import React from "react";
 
 const CSS = `
 .ipr-badge{
-  display:inline-flex; align-items:center; gap:5px;
+  display:inline-flex; align-items:center; gap:6px;
   font-family:var(--font-body); font-size:var(--text-xs); font-weight:var(--weight-semibold);
-  line-height:1; padding:5px 9px; border-radius:var(--radius-pill);
-  border:1px solid transparent; white-space:nowrap; letter-spacing:.005em;
+  line-height:1; padding:5px 11px; border-radius:var(--radius-pill);
+  border:1px solid transparent; white-space:nowrap; letter-spacing:.01em;
+  -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
 }
 .ipr-badge__dot{ width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0; }
-.ipr-badge--brand{ background:var(--violet-100); color:var(--violet-700); border-color:var(--violet-200); }
-.ipr-badge--neutral{ background:var(--neutral-100); color:var(--neutral-700); border-color:var(--neutral-200); }
-.ipr-badge--success{ background:var(--success-surface); color:var(--green-600); border-color:rgba(22,163,74,.2); }
-.ipr-badge--warning{ background:var(--warning-surface); color:var(--amber-600); border-color:rgba(224,138,0,.2); }
-.ipr-badge--danger{ background:var(--danger-surface); color:var(--red-600); border-color:rgba(220,38,38,.2); }
-.ipr-badge--info{ background:var(--info-surface); color:var(--blue-600); border-color:rgba(37,99,235,.2); }
-.ipr-badge--solid{ background:var(--grad-brand); color:var(--text-on-brand); border-color:transparent; }
+.ipr-badge--brand{ background:var(--clay-50); color:var(--clay-800); border-color:rgba(255,122,89,.34); }
+.ipr-badge--neutral{ background:var(--glass-2); color:var(--text-muted); border-color:var(--glass-edge); }
+.ipr-badge--success{ background:var(--success-surface); color:var(--green-600); border-color:rgba(64,214,143,.30); }
+.ipr-badge--warning{ background:var(--warning-surface); color:var(--amber-600); border-color:rgba(255,195,107,.30); }
+.ipr-badge--danger{ background:var(--danger-surface); color:var(--red-600); border-color:var(--danger-border); }
+.ipr-badge--info{ background:var(--info-surface); color:var(--blue-600); border-color:rgba(110,165,255,.30); }
+.ipr-badge--solid{ background:var(--clay-500); color:var(--text-on-brand);
+  border-color:transparent; box-shadow:var(--clay-raise-sm); }
 `;
 
 function useInjectStyle(id: string, css: string) {

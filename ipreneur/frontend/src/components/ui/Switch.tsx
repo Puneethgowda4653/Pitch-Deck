@@ -3,23 +3,31 @@ import React from "react";
 const CSS = `
 .ipr-switch{ position:relative; display:inline-flex; align-items:center; cursor:pointer; flex-shrink:0; }
 .ipr-switch input{ position:absolute; opacity:0; width:0; height:0; }
+/* The clearest clay object in the app: a pressed-in track, a raised thumb. */
 .ipr-switch__track{
-  width:42px; height:24px; border-radius:var(--radius-pill);
-  background:var(--neutral-300); border:1px solid var(--neutral-300);
+  width:48px; height:28px; border-radius:var(--radius-pill);
+  background:var(--surface-sunken); border:1px solid var(--glass-edge);
+  box-shadow:var(--clay-inset);
   transition:background var(--dur-base) var(--ease-out),
              border-color var(--dur-base) var(--ease-out);
   position:relative;
 }
 .ipr-switch__thumb{
   position:absolute; top:3px; left:3px;
-  width:16px; height:16px; border-radius:50%;
-  background:#fff; box-shadow:var(--shadow-xs);
-  transition:transform var(--dur-base) var(--ease-out);
+  width:20px; height:20px; border-radius:50%;
+  background:var(--ink-0);
+  box-shadow:inset 0 -1.5px 3px rgba(122,78,62,.20), 0 2px 5px rgba(122,78,62,.28);
+  transition:transform var(--dur-base) var(--ease-clay), background var(--dur-base) var(--ease-out);
 }
-.ipr-switch input:checked ~ .ipr-switch__track{ background:var(--grad-brand); border-color:var(--violet-600); }
-.ipr-switch input:checked ~ .ipr-switch__track .ipr-switch__thumb{ transform:translateX(18px); }
-.ipr-switch input:focus-visible ~ .ipr-switch__track{ box-shadow:var(--focus-ring); }
-.ipr-switch input:disabled ~ .ipr-switch__track{ opacity:.5; cursor:not-allowed; }
+.ipr-switch input:checked ~ .ipr-switch__track{
+  background:rgba(255,122,89,.30); border-color:rgba(255,122,89,.55);
+}
+.ipr-switch input:checked ~ .ipr-switch__track .ipr-switch__thumb{
+  transform:translateX(20px); background:var(--clay-500);
+  box-shadow:inset 0 1.5px 0 rgba(255,255,255,.45), 0 3px 8px rgba(255,122,89,.50);
+}
+.ipr-switch input:focus-visible ~ .ipr-switch__track{ box-shadow:var(--clay-inset), var(--focus-ring); }
+.ipr-switch input:disabled ~ .ipr-switch__track{ opacity:.45; cursor:not-allowed; }
 `;
 
 function useInjectStyle(id: string, css: string) {

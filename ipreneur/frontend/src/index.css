@@ -3,97 +3,158 @@
 @tailwind utilities;
 
 /* ============================================================
-   iPreneur Design System — CSS Custom Properties
-   Light, professional purple theme.
+   iPreneur Design System — "Kiln"
+   Clay + glass on a deep aurora ground.
+
+   The system has one rule that decides every surface treatment:
+
+     CLAY  — things you touch      (buttons, switches, active nav,
+                                    selected cards, chosen options)
+     GLASS — things that contain   (panels, cards, the sidebar, popovers)
+     FLAT  — things that inform    (text, dividers, tables, charts)
+
+   Clay is lit from above: a bright inner top edge, a dark inner bottom
+   edge, and a soft drop below, so it reads as a pressable object. Glass
+   is a blurred, barely-there membrane that lets the aurora through.
+   Nothing gets both — that is what stops this becoming a page of
+   identical rounded boxes with the same shadow under each.
+
+   The ground is white, lit by a very low aurora — enough for the glass
+   to have something to refract without tinting the page.
    ============================================================ */
 
 :root {
-  /* ── Brand violet scale ─────────────────────────────────── */
-  --violet-50:  #F7F4FE;
-  --violet-100: #EFE8FC;
-  --violet-200: #E0D2F8;
-  --violet-300: #C9B2F1;
-  --violet-400: #AC86E6;
-  --violet-500: #9359DC;
-  --violet-600: #7B2CBF;
-  --violet-700: #66249F;
-  --violet-800: #511E7E;
-  --violet-900: #3F1A61;
+  /* ── Cobalt & Slate scale (Minimalist Monochrome & Cobalt) ──── */
+  --cobalt-50:  #EFF6FF;
+  --cobalt-100: #DBEAFE;
+  --cobalt-200: #BFDBFE;
+  --cobalt-300: #93C5FD;
+  --cobalt-400: #60A5FA;
+  --cobalt-500: #2563EB;
+  --cobalt-600: #1D4ED8;
+  --cobalt-700: #1E40AF;
+  --cobalt-800: #1E3A8A;
+  --cobalt-900: #172554;
 
-  /* ── Indigo / electric-blue scale ──────────────────────── */
-  --indigo-50:  #EEF1FC;
-  --indigo-100: #DCE2F9;
-  --indigo-200: #BBC6F1;
-  --indigo-300: #8E9FE6;
-  --indigo-400: #5A6FD4;
-  --indigo-500: #3A52C4;
-  --indigo-600: #2540B5;
-  --indigo-700: #1E3494;
-  --indigo-800: #1A2B76;
-  --indigo-900: #16245E;
+  /* Primary button / surface tokens */
+  --clay-50:  #F8FAFC;
+  --clay-100: #F1F5F9;
+  --clay-200: #E2E8F0;
+  --clay-300: #CBD5E1;
+  --clay-400: #1E293B;
+  --clay-500: #0F172A;
+  --clay-600: #020617;
+  --clay-700: #1D4ED8;
+  --clay-800: #1E40AF;
+  --clay-900: #0F172A;
 
-  /* ── Magenta accent ─────────────────────────────────────── */
-  --magenta-400: #C75FD0;
-  --magenta-500: #B23FBE;
-  --magenta-600: #9C2FA8;
+  /* ── Ink scale (Clean Slate / Gray) ───────────────────────── */
+  --ink-0:    #FFFFFF;
+  --ink-25:   #FAFAFA;
+  --ink-50:   #F8FAFC;
+  --ink-100:  #F1F5F9;
+  --ink-200:  #E2E8F0;
+  --ink-300:  #CBD5E1;
+  --ink-400:  #94A3B8;
+  --ink-500:  #64748B;
+  --ink-600:  #475569;
+  --ink-700:  #334155;
+  --ink-800:  #1E293B;
+  --ink-900:  #0F172A;
+  --ink-950:  #020617;
 
-  /* ── Neutral scale — purple-tinted greys ────────────────── */
-  --neutral-0:   #FFFFFF;
-  --neutral-25:  #FCFBFE;
-  --neutral-50:  #FAF8FE;
-  --neutral-100: #F4F1FA;
-  --neutral-200: #ECE7F4;
-  --neutral-300: #DDD6EC;
-  --neutral-400: #C3B9D8;
-  --neutral-500: #9A8FB5;
-  --neutral-600: #726890;
-  --neutral-700: #544B70;
-  --neutral-800: #36304B;
-  --neutral-900: #1E1833;
+  /* ── Aurora & Accents ───────────────────────────────────── */
+  --aurora-1: #2563EB;   /* Cobalt */
+  --aurora-2: #38BDF8;   /* Sky */
+  --aurora-3: #0EA5E9;   /* Cyan */
+
+  /* ── Legacy scale aliases ─────────────────────────────────── */
+  --violet-50:  var(--cobalt-50);   --violet-100: var(--cobalt-100);
+  --violet-200: var(--cobalt-200);  --violet-300: var(--cobalt-300);
+  --violet-400: var(--cobalt-400);  --violet-500: var(--cobalt-500);
+  --violet-600: var(--cobalt-600);  --violet-700: var(--cobalt-700);
+  --violet-800: var(--cobalt-800);  --violet-900: var(--cobalt-900);
+
+  --neutral-0:   var(--ink-0);    --neutral-25:  var(--ink-25);
+  --neutral-50:  var(--ink-50);   --neutral-100: var(--ink-100);
+  --neutral-200: var(--ink-200);  --neutral-300: var(--ink-300);
+  --neutral-400: var(--ink-400);  --neutral-500: var(--ink-500);
+  --neutral-600: var(--ink-600);  --neutral-700: var(--ink-700);
+  --neutral-800: var(--ink-800);  --neutral-900: var(--ink-900);
+
+  --indigo-600: #2563EB;
+  --magenta-500: #2563EB;
 
   /* ── Semantic hues ──────────────────────────────────────── */
-  --green-50:  #ECFBF2;  --green-500: #16A34A;  --green-600: #128A3E;
-  --amber-50:  #FEF6E9;  --amber-500: #E08A00;  --amber-600: #C26E00;
-  --red-50:    #FDECEC;  --red-500:   #DC2626;  --red-600:   #BE1B1B;
-  --blue-50:   #EBF2FE;  --blue-500:  #2563EB;  --blue-600:  #1D4FCC;
+  --green-50:  rgba(16, 185, 129, .10);  --green-500: #10B981;  --green-600: #059669;
+  --amber-50:  rgba(245, 158, 11, .10);  --amber-500: #F59E0B;  --amber-600: #D97706;
+  --red-50:    rgba(239, 68, 68, .10);   --red-500:   #EF4444;  --red-600:   #DC2626;
+  --blue-50:   rgba(37, 99, 235, .10);   --blue-500:  #2563EB;  --blue-600:  #1D4ED8;
 
-  /* ── Brand semantic aliases ─────────────────────────────── */
-  --brand:           var(--violet-600);
-  --brand-hover:     var(--violet-700);
-  --brand-press:     var(--violet-800);
-  --brand-subtle:    var(--violet-100);
-  --brand-subtle-2:  var(--violet-50);
-  --brand-secondary: var(--indigo-600);
+  /* ── Brand aliases ──────────────────────────────────────── */
+  --brand:           #0F172A;
+  --brand-hover:     #1E293B;
+  --brand-press:     #020617;
+  --brand-subtle:    rgba(37, 99, 235, .08);
+  --brand-subtle-2:  rgba(15, 23, 42, .04);
+  --brand-secondary: #2563EB;
 
-  /* ── Gradients ──────────────────────────────────────────── */
-  --grad-brand:       linear-gradient(135deg, var(--indigo-600) 0%, var(--violet-600) 100%);
-  --grad-brand-vivid: linear-gradient(135deg, var(--indigo-600) 0%, var(--violet-600) 52%, var(--magenta-500) 100%);
-  --grad-brand-soft:  linear-gradient(135deg, var(--indigo-50) 0%, var(--violet-50) 100%);
-  --grad-hero:        radial-gradient(120% 90% at 50% -10%, var(--violet-100) 0%, rgba(247,244,254,0) 60%);
+  --grad-brand:       #0F172A;
+  --grad-brand-vivid: linear-gradient(135deg, #0F172A 0%, #1E40AF 60%, #2563EB 100%);
+  --grad-brand-soft:  rgba(37, 99, 235, .08);
+  --grad-hero:        radial-gradient(120% 90% at 50% -10%, rgba(37,99,235,.10) 0%, rgba(15,23,42,0) 65%);
+
+  /* ── Glass ────────────────────────────────────────────────── */
+  --glass-1:        rgba(255, 255, 255, .75);
+  --glass-2:        rgba(255, 255, 255, .88);
+  --glass-3:        rgba(255, 255, 255, .96);
+  --glass-blur:     saturate(150%) blur(16px);
+  --glass-blur-lg:  saturate(160%) blur(24px);
+  --glass-edge:     rgba(15, 23, 42, .08);
+  --glass-edge-hi:  rgba(37, 99, 235, .35);
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, .95);
+
+  /* ── Clay / Buttons ───────────────────────────────────────── */
+  --clay-raise:
+    inset 0 1px 0 rgba(255, 255, 255, .20),
+    0 2px 4px rgba(15, 23, 42, .15),
+    0 1px 2px rgba(15, 23, 42, .10);
+  --clay-raise-sm:
+    inset 0 1px 0 rgba(255, 255, 255, .15),
+    0 1px 3px rgba(15, 23, 42, .12);
+  --clay-press:
+    inset 0 2px 4px rgba(0, 0, 0, .25),
+    0 1px 1px rgba(15, 23, 42, .08);
+  --clay-raise-neutral:
+    inset 0 1px 0 rgba(255, 255, 255, .95),
+    0 1px 3px rgba(15, 23, 42, .08);
+  --clay-inset:
+    inset 0 1px 3px rgba(15, 23, 42, .06),
+    inset 0 -1px 0 rgba(255, 255, 255, .90);
 
   /* ── Surfaces ───────────────────────────────────────────── */
-  --surface-page:   var(--neutral-50);
-  --surface-card:   var(--neutral-0);
-  --surface-raised: var(--neutral-0);
-  --surface-sunken: var(--neutral-100);
-  --surface-hover:  var(--neutral-100);
-  --surface-brand:  var(--violet-50);
+  --surface-page:   var(--ink-0);
+  --surface-card:   var(--ink-0);
+  --surface-raised: var(--glass-3);
+  --surface-sunken: rgba(15, 23, 42, .03);
+  --surface-hover:  rgba(15, 23, 42, .04);
+  --surface-brand:  var(--brand-subtle);
 
   /* ── Text ───────────────────────────────────────────────── */
-  --text-strong:   var(--neutral-900);
-  --text-body:     var(--neutral-700);
-  --text-muted:    var(--neutral-600);
-  --text-faint:    var(--neutral-500);
-  --text-on-brand: var(--neutral-0);
-  --text-brand:    var(--violet-600);
-  --text-link:     var(--violet-600);
+  --text-strong:   var(--ink-900);
+  --text-body:     var(--ink-700);
+  --text-muted:    var(--ink-500);
+  --text-faint:    var(--ink-400);
+  --text-on-brand: #FFFFFF;
+  --text-brand:    var(--cobalt-600);
+  --text-link:     var(--cobalt-600);
 
   /* ── Borders ────────────────────────────────────────────── */
-  --border-subtle:  var(--neutral-200);
-  --border-default: var(--neutral-300);
-  --border-strong:  var(--neutral-400);
-  --border-brand:   var(--violet-300);
-  --ring-brand:     rgba(123, 44, 191, 0.32);
+  --border-subtle:  rgba(15, 23, 42, .06);
+  --border-default: rgba(15, 23, 42, .10);
+  --border-strong:  rgba(15, 23, 42, .18);
+  --border-brand:   rgba(37, 99, 235, .40);
+  --ring-brand:     rgba(37, 99, 235, .30);
 
   /* ── Semantic surface/text ──────────────────────────────── */
   --success:         var(--green-500);
@@ -102,13 +163,17 @@
   --warning-surface: var(--amber-50);
   --danger:          var(--red-500);
   --danger-surface:  var(--red-50);
+  --danger-border:   rgba(239, 68, 68, .25);
   --info:            var(--blue-500);
   --info-surface:    var(--blue-50);
 
-  /* ── Typography ─────────────────────────────────────────── */
-  --font-display: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
-  --font-body:    "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono:    "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
+  /* ── Typography ─────────────────────────────────────────────
+     Gabarito: geometric with just enough wonk to feel moulded rather
+     than drafted — it suits clay. Hanken Grotesk keeps the body text
+     quiet and highly legible on a dark ground. */
+  --font-display: "Gabarito", "Trebuchet MS", sans-serif;
+  --font-body:    "Hanken Grotesk", "Segoe UI", sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, monospace;
 
   --weight-regular:  400;
   --weight-medium:   500;
@@ -126,61 +191,58 @@
   --text-3xl:  3rem;
   --text-4xl:  3.75rem;
 
-  --leading-tight:   1.12;
+  --leading-tight:   1.10;
   --leading-snug:    1.28;
-  --leading-normal:  1.5;
-  --leading-relaxed: 1.7;
+  --leading-normal:  1.55;
+  --leading-relaxed: 1.72;
 
   --tracking-tighter: -0.03em;
-  --tracking-tight:   -0.018em;
+  --tracking-tight:   -0.02em;
   --tracking-normal:  0;
   --tracking-wide:    0.02em;
-  --tracking-caps:    0.08em;
+  --tracking-caps:    0.09em;
 
   /* ── Spacing ─────────────────────────────────────────────── */
-  --space-0:  0;
-  --space-1:  0.25rem;
-  --space-2:  0.5rem;
-  --space-3:  0.75rem;
-  --space-4:  1rem;
-  --space-5:  1.25rem;
-  --space-6:  1.5rem;
-  --space-8:  2rem;
-  --space-10: 2.5rem;
-  --space-12: 3rem;
-  --space-16: 4rem;
-  --space-20: 5rem;
+  --space-0:  0;     --space-1:  0.25rem; --space-2:  0.5rem;
+  --space-3:  0.75rem; --space-4: 1rem;   --space-5:  1.25rem;
+  --space-6:  1.5rem;  --space-8: 2rem;   --space-10: 2.5rem;
+  --space-12: 3rem;    --space-16: 4rem;  --space-20: 5rem;
   --space-24: 6rem;
 
-  /* ── Radii ───────────────────────────────────────────────── */
-  --radius-xs:   6px;
-  --radius-sm:   8px;
-  --radius-md:   12px;
-  --radius-lg:   16px;
-  --radius-xl:   20px;
-  --radius-2xl:  28px;
+  /* ── Radii ───────────────────────────────────────────────────
+     Clay is soft, so the scale runs large — but it stays a SCALE.
+     Small controls take small radii; only big surfaces get the
+     pillowy end, so hierarchy survives. */
+  --radius-xs:   8px;
+  --radius-sm:   12px;
+  --radius-md:   16px;
+  --radius-lg:   22px;
+  --radius-xl:   28px;
+  --radius-2xl:  36px;
   --radius-pill: 999px;
 
   /* ── Shadows ─────────────────────────────────────────────── */
-  --shadow-xs: 0 1px 2px rgba(45, 27, 92, 0.06);
-  --shadow-sm: 0 1px 3px rgba(45, 27, 92, 0.08), 0 1px 2px rgba(45, 27, 92, 0.05);
-  --shadow-md: 0 6px 16px rgba(45, 27, 92, 0.08), 0 2px 6px rgba(45, 27, 92, 0.05);
-  --shadow-lg: 0 16px 36px rgba(45, 27, 92, 0.10), 0 4px 12px rgba(45, 27, 92, 0.06);
-  --shadow-xl: 0 28px 64px rgba(45, 27, 92, 0.14), 0 8px 20px rgba(45, 27, 92, 0.08);
-  --glow-brand: 0 8px 26px rgba(123, 44, 191, 0.30);
+  --shadow-xs: 0 1px 2px rgba(122, 78, 62, .08);
+  --shadow-sm: 0 2px 8px rgba(122, 78, 62, .10);
+  --shadow-md: 0 10px 24px rgba(122, 78, 62, .12);
+  --shadow-lg: 0 22px 48px rgba(122, 78, 62, .16);
+  --shadow-xl: 0 36px 80px rgba(122, 78, 62, .20);
+  --glow-brand: 0 12px 30px -8px rgba(255, 122, 89, .50);
 
   /* ── Focus & motion ──────────────────────────────────────── */
   --ring-width:  3px;
   --focus-ring:  0 0 0 var(--ring-width) var(--ring-brand);
   --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* Clay has mass — it settles rather than snapping. */
+  --ease-clay:   cubic-bezier(0.34, 1.46, 0.44, 1);
   --dur-fast:    120ms;
-  --dur-base:    180ms;
-  --dur-slow:    320ms;
+  --dur-base:    200ms;
+  --dur-slow:    340ms;
   --transition:  all var(--dur-base) var(--ease-out);
 }
 
-/* ── Base resets ──────────────────────────────────────────── */
+/* ── Base ─────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
@@ -193,6 +255,30 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+
+/* The aurora. Fixed behind everything, so glass has something to
+   refract no matter where you scroll. Three slow-moving orbs, wide
+   and heavily blurred — atmosphere, not decoration. */
+/* Pure white clean background */
+body::before {
+  display: none;
+}
+body::after {
+  display: none;
+}
+
+/* The aurora is atmosphere; nobody should have to sit through it. */
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* Everything the app renders sits above the aurora. */
+#root { position: relative; z-index: 1; }
 
 h1, h2, h3, h4, h5 {
   font-family: var(--font-display);
@@ -207,11 +293,45 @@ p { margin: 0; }
 a { color: var(--text-link); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code, kbd, samp { font-family: var(--font-mono); }
-::selection { background: var(--violet-200); color: var(--violet-900); }
+::selection { background: rgba(255, 122, 89, .30); color: var(--ink-900); }
+
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(28, 22, 19, .18);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(28,22,19,.30); background-clip: content-box; }
+
+/* The wordmark asset is dark artwork drawn for a light page, which is
+   what this ground is again — no correction needed. */
+
+/* ── Surface helpers ──────────────────────────────────────── */
+
+/* GLASS — containers. Blurred membrane, lit top rim, no drop shadow
+   of its own beyond a soft lift. */
+.ipr-glass {
+  background: var(--glass-2);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-rim), var(--shadow-md);
+}
+
+/* CLAY — pressable. Never combined with .ipr-glass. */
+.ipr-clay {
+  background: var(--clay-500);
+  color: var(--text-on-brand);
+  border: none;
+  box-shadow: var(--clay-raise);
+}
+.ipr-clay:active { box-shadow: var(--clay-press); transform: translateY(1px); }
 
 /* ── Brand helpers ────────────────────────────────────────── */
 .ipr-gradient-text {
-  background: var(--grad-brand);
+  background: linear-gradient(135deg, #0F172A 0%, #1E40AF 50%, #2563EB 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -220,18 +340,117 @@ code, kbd, samp { font-family: var(--font-mono); }
 .ipr-eyebrow {
   font-family: var(--font-body);
   font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
-  color: var(--text-brand);
+  color: #2563EB;
 }
 
 .ipr-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--grad-brand);
-  color: var(--neutral-0);
+  background: #0F172A;
+  color: #FFFFFF;
   border-radius: var(--radius-md);
-  box-shadow: var(--glow-brand);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15);
 }
+
+/* ============================================================
+   Minimalist Monochrome & Cobalt Blue Helpers
+   ============================================================ */
+.kiln-glass {
+  background: rgba(255, 255, 255, 0.88);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 10px 30px -8px rgba(15, 23, 42, 0.06);
+}
+
+.kiln-glass-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.kiln-glass-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 12px 28px -6px rgba(15, 23, 42, 0.08), 0 0 16px -4px rgba(37, 99, 235, 0.15);
+}
+
+.kiln-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 9999px;
+  background: #F8FAFC;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  font-size: 13px;
+  font-weight: 600;
+  color: #0F172A;
+  transition: all 0.2s ease;
+}
+.kiln-pill:hover {
+  background: #FFFFFF;
+  border-color: rgba(37, 99, 235, 0.4);
+}
+
+.kiln-btn-clay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #0F172A;
+  color: #FFFFFF;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.20), 0 2px 4px rgba(15, 23, 42, 0.15);
+  transition: all var(--dur-base) ease;
+}
+.kiln-btn-clay:hover {
+  background: #1E293B;
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 12px rgba(15, 23, 42, 0.20);
+}
+.kiln-btn-clay:active {
+  transform: translateY(1px);
+  background: #000000;
+}
+
+.kiln-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #FFFFFF;
+  color: #0F172A;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  border-radius: 9999px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.kiln-btn-secondary:hover {
+  background: #F8FAFC;
+  border-color: rgba(15, 23, 42, 0.25);
+  transform: translateY(-1px);
+}
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.animate-float-slow {
+  animation: floatSlow 6s ease-in-out infinite;
+}
+
+

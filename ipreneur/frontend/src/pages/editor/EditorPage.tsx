@@ -136,7 +136,7 @@ export default function EditorPage() {
   }
 
   return (
-    <div style={{ background: "var(--surface-page)", minHeight: "100vh" }}>
+    <div style={{ background: "transparent", minHeight: "100vh" }}>
       <div style={ep.topbar}>
         <div style={ep.topLeft}>
           <Link to={`/projects/${projectId}`} onClick={handleBackClick} style={ep.backLink}>
@@ -170,6 +170,8 @@ export default function EditorPage() {
       <div style={ep.body}>
         <TemplatedDeckSection
           data={draft}
+          deckType={(project.deckContent as any)?.deckType ?? project.deckType}
+          slideOrder={(project.deckContent as any)?.slideOrder}
           initialKey={(project as any).templateKey}
           assets={(project as any).assets}
           onPersist={(key) => saveTemplate(key)}

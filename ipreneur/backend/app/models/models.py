@@ -112,6 +112,12 @@ class Project(Base):
     deck_content: Mapped[Optional[dict]] = mapped_column(JSONType)
     error_message: Mapped[Optional[str]] = mapped_column(Text)
 
+    # Which kind of deck this is — one of app.decks.registry.DECK_TYPES.
+    # Decides the slide sequence, the research profile, and the intake fields.
+    # Defaults to "investor", which is what every project predating multi-deck
+    # support is, so existing rows need no backfill beyond the column default.
+    deck_type: Mapped[str] = mapped_column(String(32), default="investor", nullable=False, server_default="investor")
+
     # User-selected deck template (one of the 10 theme keys). Null = use default.
     template_key: Mapped[Optional[str]] = mapped_column(String(32))
 

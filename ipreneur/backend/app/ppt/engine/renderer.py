@@ -10,7 +10,7 @@ Layout system:
   timeline    — Milestones: horizontal flow of events
 """
 import io
-from typing import Optional
+from typing import Optional, Sequence
 
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
@@ -21,7 +21,8 @@ from loguru import logger
 from app.services.branding.extractor import BrandingData
 from app.agents.content.content_agent import DeckContent, SlideContent
 from app.ppt.engine.themes import get_theme
-from app.ppt.engine.template_schema import TEMPLATE_SECTION_BY_SLIDE_NUMBER, _coerce_number as _coerce_float
+from app.decks.registry import resolve_sections, section_by_slide_number
+from app.ppt.engine.template_schema import _coerce_number as _coerce_float
 from app.services.images.image_service import normalize_logo
 
 
@@ -197,8 +198,14 @@ class PPTRenderer:
         slide_backgrounds: Optional[dict] = None,
         template_key: Optional[str] = None,
         template_data: Optional[dict] = None,
+        sections: Optional[Sequence[str]] = None,
     ) -> bytes:
         theme = get_theme(template_key)
+        # Which template_data section enriches which slide depends on the deck
+        # type's slide order, so it is resolved per render rather than being a
+        # module-level constant. Falls back to the investor deck for callers
+        # that predate multi-deck support.
+        by_slide_number = section_by_slide_number(sections or resolve_sections(None))
         logger.info(
             f"📊 Rendering PPTX: {len(deck_content.slides)} slides | "
             f"theme={template_key or 'default'} ({theme['name']}, {theme['mode']}) | "
@@ -235,7 +242,7 @@ class PPTRenderer:
             # Richer AI output for this slide, keyed by fixed slide position
             # (see template_schema.py) — each builder falls back to plain
             # SlideContent fields when this is empty/missing for its slide.
-            section_key = TEMPLATE_SECTION_BY_SLIDE_NUMBER.get(slide_data.slide_number)
+            section_key = by_slide_number.get(slide_data.slide_number)
             td = template_data.get(section_key, {}) if section_key else {}
 
             if layout == "full_bleed":

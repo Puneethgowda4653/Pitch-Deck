@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, ChevronRight, LayoutGrid, Maximize2 } from "lucide-react";
 import { clsx } from "clsx";
 

@@ -5,7 +5,14 @@ Separate from ORM models — schemas handle API I/O, models handle DB.
 from datetime import datetime
 from typing import Optional, Any
 
-from pydantic import BaseModel, HttpUrl, ConfigDict, model_validator
+from pydantic import BaseModel, HttpUrl, ConfigDict, field_validator, model_validator
+
+from app.decks.registry import (
+    DECK_TYPES,
+    DEFAULT_DECK_TYPE,
+    get_deck_type,
+    required_manual_fields,
+)
 
 
 class ProjectCreate(BaseModel):
@@ -13,15 +20,45 @@ class ProjectCreate(BaseModel):
     company_url: Optional[HttpUrl] = None
     start_analysis: bool = False
     branding_data: Optional[dict[str, Any]] = None
+    deck_type: str = DEFAULT_DECK_TYPE
+
+    @field_validator("deck_type")
+    @classmethod
+    def _known_deck_type(cls, v: str) -> str:
+        if v not in DECK_TYPES:
+            raise ValueError(f"Unknown deck type '{v}'. Expected one of: {', '.join(sorted(DECK_TYPES))}")
+        return v
 
     @model_validator(mode="after")
-    def _require_website_or_manual_context(self) -> "ProjectCreate":
+    def _require_context_for_deck_type(self) -> "ProjectCreate":
+        """Each deck type declares what it cannot be generated without.
+
+        Two separate gates: a type's own required brief fields are needed even
+        when a website exists (crawling a site tells us nothing about which
+        buyer this sales deck is aimed at), while `manual_required` covers the
+        extra context a project with no site to crawl has no other source for.
+        """
+        bd = self.branding_data or {}
+
+        def _missing(names) -> list[str]:
+            return [n for n in names if not str(bd.get(n) or "").strip()]
+
+        dt = get_deck_type(self.deck_type)
+
+        required_brief = [f.name for f in dt.brief_fields if f.required]
+        missing = _missing(required_brief)
+        if missing:
+            labels = {f.name: f.label for f in dt.brief_fields}
+            raise ValueError(
+                f"{dt.label} decks need: " + ", ".join(labels.get(m, m) for m in missing)
+            )
+
         if self.company_url is None:
-            bd = self.branding_data or {}
-            if not (bd.get("company_name") and bd.get("problem_statement") and bd.get("solution_description")):
+            missing = _missing(required_manual_fields(self.deck_type))
+            if missing:
                 raise ValueError(
-                    "Provide either company_url, or branding_data.company_name + "
-                    "problem_statement + solution_description for a no-website project."
+                    "Without a website we need these details instead: "
+                    + ", ".join(m.replace("_", " ") for m in missing)
                 )
         return self
 
@@ -47,6 +84,7 @@ class ProjectResponse(BaseModel):
     research_data: Optional[dict] = None
     deck_content: Optional[dict] = None
     error_message: Optional[str] = None
+    deck_type: str = DEFAULT_DECK_TYPE
     template_key: Optional[str] = None
     assets: Optional[dict] = None
     created_at: datetime
